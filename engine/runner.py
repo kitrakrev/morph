@@ -13,6 +13,10 @@ from engine.store import db
 from engine import telemetry
 
 
+def sim_program(sim) -> list[dict]:
+    return [e for e in sim.events if e["kind"] == "call"]
+
+
 def _diagnose(score: dict, t1: dict | None, sim) -> str:
     parts = []
     v = score["safety_violations"]
@@ -30,7 +34,12 @@ def _diagnose(score: dict, t1: dict | None, sim) -> str:
         parts.append("not delivered: " + "; ".join(errs[:2]) if errs else "not delivered")
     if t1 and not t1["pass"]:
         parts.append("tier1: " + "; ".join(t1["reasons"][:2]))
-    parts.append(f"energy {score['energy_wh']}Wh")
+    moved = max(1, sum(1 for a, b in zip(sim.frames, sim.frames[1:])
+                       for rid in a["robots"] if a["robots"][rid]["pos"] != b["robots"][rid]["pos"]))
+    parts.append(f"energy {score['energy_wh']}Wh over {moved} cells = measured {score['energy_wh'] / moved:.2f} Wh/cell")
+    parts.append("sequence " + " > ".join(f"{c['skill']}{'' if c['ok'] else '(failed)'}" for c in sim_program(sim)))
+    if t1:
+        parts.append(f"tier1 estimated {sum(t1['est_wh'].values()):.1f}Wh")
     return ", ".join(parts)
 
 

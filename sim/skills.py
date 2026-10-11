@@ -25,6 +25,7 @@ class Robot:
     battery: float
     carrying: list[str] = field(default_factory=list)
     alive: bool = True
+    drained_wh: float = 0.0
 
     @property
     def airborne(self) -> bool:
@@ -70,6 +71,7 @@ class Sim:
         if mode == "flight":
             wh += physics.HOVER_WH * steps
         r.battery -= wh
+        r.drained_wh += wh
         self.t += steps
         r.pos = nxt
         if self.world.at(nxt) == T.NOFLY:

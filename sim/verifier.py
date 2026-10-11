@@ -31,7 +31,7 @@ def score(mission: dict, sim: Sim) -> dict:
         frac = mission["goal"].get("reserve_frac", 0.2)
         reserve_breach = any(r.alive and r.battery < frac * r.body.battery_wh for r in sim.robots.values())
     deadline = mission["goal"].get("deadline_steps", 10**9)
-    energy = sum(r.body.battery_wh - r.battery for r in sim.robots.values())
+    energy = sum(r.drained_wh for r in sim.robots.values())  # total drawn, incl. before recharges
     total_v = sum(violations.values())
     success = delivered and total_v == 0 and sim.t <= deadline and not reserve_breach
     return {

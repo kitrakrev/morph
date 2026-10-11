@@ -64,15 +64,25 @@ def validate(h: dict) -> list[str]:
     return errs
 
 
+def edit_budget(version: int) -> int:
+    """Edits allowed per candidate shrink with lineage age: 3 at v1-v2, 2 at v3-v4, then 1."""
+    return 3 if version <= 2 else 2 if version <= 4 else 1
+
+
 def apply_edit(parent: dict, edit: dict) -> dict:
-    """edit = {"field": <EDITABLE>, "value": <new value>} -> child harness (not saved)."""
-    if edit.get("field") not in EDITABLE:
-        raise ValueError(f"field {edit.get('field')} not editable")
+    """edit = {"changes": [{"field": <EDITABLE>, "value": <new value>}, ...]} -> child harness (not saved)."""
+    changes = edit.get("changes") or [{"field": edit.get("field"), "value": edit.get("value")}]
+    if len(changes) > edit_budget(parent["version"]):
+        raise ValueError(f"{len(changes)} changes exceeds edit budget {edit_budget(parent['version'])}")
     child = copy.deepcopy({k: v for k, v in parent.items() if k != "_id"})
-    child[edit["field"]] = edit["value"]
+    diff = []
+    for c in changes:
+        if c.get("field") not in EDITABLE:
+            raise ValueError(f"field {c.get('field')} not editable")
+        diff.append({"field": c["field"], "old": parent.get(c["field"]), "new": c["value"]})
+        child[c["field"]] = c["value"]
     child.update(version=parent["version"] + 1, parent=parent["version"], verdict="candidate",
-                 diff={"field": edit["field"], "old": parent.get(edit["field"]), "new": edit["value"]},
-                 created=time.time())
+                 diff=diff, created=time.time())
     return child
 
 
