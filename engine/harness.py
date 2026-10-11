@@ -74,6 +74,11 @@ def validate(h: dict) -> list[str]:
     for t in h.get("tool_specs", {}):
         if t not in PRIMITIVES:
             errs.append(f"tool {t} is not a primitive")
+    # locked safety switches may be turned on, never off
+    for d in (h.get("diff") or []) if isinstance(h.get("diff"), list) else []:
+        if d["field"] == "tool_specs" and get(d.get("old") or {}, "fly_to.avoid_nofly") is True \
+                and get(d.get("new") or {}, "fly_to.avoid_nofly") is not True:
+            errs.append("tool_specs.fly_to.avoid_nofly is a locked safety switch: it cannot be turned off")
     for s in h.get("skills", []):
         if not isinstance(s, dict) or any(st.get("skill") not in PRIMITIVES for st in s.get("steps", [])):
             errs.append(f"composed skill {s if not isinstance(s, dict) else s.get('name')} uses non-primitive")

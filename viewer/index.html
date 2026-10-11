@@ -49,7 +49,11 @@
 </nav>
 <main id="main"></main>
 <script>
-const $ = s => document.querySelector(s), api = p => fetch(p).then(r => r.json());
+const STATIC = !/^(localhost|127\.0\.0\.1)/.test(location.hostname);
+const staticPath = p => { const u = new URL(p, "http://x"), q = u.searchParams, name = u.pathname.replace("/api/", "");
+  return "data/" + name + (q.get("version") ? "-" + q.get("version") : "") + ".json"; };
+const $ = s => document.querySelector(s), api = p => fetch(STATIC ? staticPath(p) : p).then(r => r.json());
+const vid = n => (STATIC ? "out/" : "/out/") + n;
 const esc = s => String(s ?? "").replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
 const frac = x => x ? `${x.ok}/${x.n}` : "—";
 let feedTimer;
@@ -68,7 +72,7 @@ const pages = {
    → Raindrop signal + Atlas failure memory → evolution agent proposes ONE bounded edit + prediction
    → gate: train ↑, safety not worse, no regression, cost per success → new version (transaction) → repeat</pre></div>
   <div class="card"><b>Hero clip</b> — same mission, same model, harness v1 vs v17<br><br>
-   <video src="/out/pair-heldout-drone-903-v1-v17.mp4" controls autoplay muted loop></video></div>`;
+   <video src="${vid("pair-heldout-drone-903-v1-v17.mp4")}" controls autoplay muted loop></video></div>`;
  },
 
  async how() {
@@ -90,7 +94,7 @@ const pages = {
    ${B(20,165,190,70,"",'Planner (Claude Haiku)',['fixed model all day','1 plan template / version'])}
    ${A("M905,108 L905,130 L115,130 L115,165")} <text x="560" y="125" class="lbl">rules, tool_specs, memory per retrieval_policy</text>
    ${A("M210,200 L250,200")}
-   ${B(250,165,170,70,"",'Compile per mission',['fill $ITEM_POS $DEST $CHARGER','clamp to tool_specs'])}
+   ${B(250,165,170,70,"",'Compile per mission',['fill $ITEM_POS, $DEST,','$CHARGER · clamp to tool_specs'])}
    ${A("M420,200 L460,200")}
    ${B(460,165,150,70,"evo",'tier1_check',['feasibility <1 s','uses harness BELIEFS'])}
    ${A("M610,190 L700,190","arg","pass",640,184)}
@@ -104,8 +108,8 @@ const pages = {
    ${B(800,360,280,82,"atlas",'MongoDB Atlas',['trials · failures (autoEmbed) · episodic memory','metrics (time-series) · checkpoints (resume)','held-out outcomes never reach agent memory'])}
    ${A("M800,400 L640,400")}
    ${B(400,365,240,70,"rd",'Raindrop',['event per trial + signals: battery_death,','nofly_violation, reserve_breach, delivered'])}
-   <text x="20" y="390" class="s">Not in workflow v1: tier1_check and replan were</text>
-   <text x="20" y="404" class="s">added by the evolution agent (v8), then rules (v17).</text>
+   <text x="34" y="390" class="s">Not in workflow v1: tier1_check and replan were</text>
+   <text x="34" y="404" class="s">added by the evolution agent (v8), then rules (v17).</text>
 
    <rect x="10" y="478" width="1080" height="400" rx="10" class="lane"/>
    <text x="20" y="498" class="h">LOOP 2 — evolve the harness (on plateau or when train isn't saturated)</text>
@@ -123,7 +127,7 @@ const pages = {
    ${B(260,655,210,70,"evo",'Promote → harness vN+1',['parent link + diff','becomes the new baseline'])}
    ${A("M860,760 L860,800","arr","reject",870,790)}
    ${B(640,800,440,60,"",'Rejected: logged with reason; agent sees it next round',['e.g. v14: +retrieval → 30 no-fly violations → blocked'])}
-   ${A("M260,690 L60,690 L60,30 L170,30","arg")} <text x="66" y="460" class="lbl" transform="rotate(-90 66 460)">new baseline feeds Loop 1</text>
+   ${A("M260,690 L16,690 L16,118 L905,118","arg")} <text x="22" y="470" class="lbl" transform="rotate(-90 22 470)">new baseline → Harness vN</text>
    ${B(80,790,480,70,"fixed",'Held-out scoring (after acceptance only) 🔒',['12 missions on unseen maps · never used for selection','reported with n · drone: v1 0/12 → v17 12/12, 0 violations'])}
   </svg>`;
   return `<h2>How it works</h2><p class="sub">Two loops. Blue 🔒 boxes are fixed code no agent can edit; green boxes are harness data the evolution agent changes; amber is the gate; teal is Atlas; indigo is Raindrop.</p>
@@ -155,7 +159,7 @@ const pages = {
   const L = await api("/api/lineage");
   const opts = L.map(h => `<option value="${h.version}" ${h.version===17?"selected":""}>v${h.version} (${h.verdict})</option>`).join("");
   const detail = async h => { const T = await api(`/api/templates?version=${h.version}`);
-    return graph(h, L[0]) + `<div class="muted" style="margin:6px 0">budgets.replans = ${h.workflow ? (L.find(x=>x.version==h.version)?.budgets ?? "") : ""}</div>` +
+    return graph(h, L[0]) + `<div class="muted" style="margin:6px 0">budgets: ${esc(JSON.stringify(h.budgets || {}))}</div>` +
       (T.primary ? `<div><b>primary program</b> (example mission)</div><pre>${esc(T.primary.join("\n"))}</pre>` : "") +
       (T.fallback ? `<div><b>fallback program</b> — used when tier1_check fails</div><pre>${esc(T.fallback.join("\n"))}</pre>` : "") +
       `<div><b>rules</b></div><pre>${esc((h.rules||[]).join("\n"))}</pre>`; };
@@ -168,7 +172,7 @@ const pages = {
  async replays() {
   const vids = (await api("/api/videos")).filter(v => v.startsWith("pair-"));
   return `<h2>Replays</h2><p class="sub">Same mission, same planner model, two harness versions, synced on simulation time. Battery bar turns red under the reserve line; altitude strip below.</p>` +
-   vids.map(v => `<div class="card"><b>${esc(v)}</b><br><br><video src="/out/${v}" controls muted preload="metadata"></video></div>`).join("");
+   vids.map(v => `<div class="card"><b>${esc(v)}</b><br><br><video src="${vid(v)}" controls muted preload="metadata"></video></div>`).join("");
  },
  async runs() {
   const T = await api("/api/trials?version=17");
@@ -195,6 +199,7 @@ const pages = {
  },
  async feed() {
   const draw = async () => { const F = await api("/api/feed"); const el = $("#feedl"); if (el) el.innerHTML = F.length ? F.map(e => `<div>${e.ts} · <b>${esc(e.coll)}</b> · ${esc(e.msg)}</div>`).join("") : '<div class="muted">waiting for changes… run the engine: PYTHONPATH=. uv run python -m engine.loop drone --gens 1</div>'; };
+  if (STATIC) return `<h2>Live feed</h2><div class="card">The live feed streams Atlas change events and runs only on the local viewer (<code>viewer/server.py</code>). This page is a static snapshot.</div>`;
   feedTimer = setInterval(draw, 2000); setTimeout(draw);
   return `<h2>Live feed</h2><p class="sub">Atlas change stream on trials, harnesses and evaluations. Start a generation on the laptop and watch it land here.</p><div class="card feed" id="feedl"></div>`;
  },

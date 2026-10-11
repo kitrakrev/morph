@@ -29,6 +29,8 @@ def _diagnose(score: dict, t1: dict | None, sim) -> str:
         parts.append("payload over limit")
     if score["reserve_breach"]:
         parts.append("finished below battery reserve")
+    if not score["deadline_met"]:
+        parts.append(f"missed deadline ({score['time']} steps)")
     if not score["delivered"] and not parts:
         errs = [e["reason"] for e in sim.events if e["kind"] == "skill_error"]
         parts.append("not delivered: " + "; ".join(errs[:2]) if errs else "not delivered")

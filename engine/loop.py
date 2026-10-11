@@ -20,16 +20,50 @@ def _brief(e: dict) -> str:
     return f"{e['success']}/{e['n']} (n={e['n']}) viol={e['violations']}"
 
 
+def adapt_curve(body: str, lineage: str, start: str = "cold", gens: int = 3, target: float = 0.8) -> dict:
+    """Generations until held-out success >= target, for a cold or warm (transfer) start."""
+    from engine import transfer
+    heldout = mission_set(body, "heldout", 12)
+    if not harness.latest(lineage):
+        if start == "warm":
+            h, src = transfer.warm_bootstrap(BODIES[body], lineage)
+            print(f"[{lineage}] warm start from {src}")
+        else:
+            h = harness.bootstrap(BODIES[body])
+            h["body_type"] = lineage
+        harness.save(h)
+    curve = []
+    for g in range(gens + 1):
+        h = harness.latest(lineage)
+        ho = evaluate(h, heldout)
+        curve.append({"gen": g, "version": h["version"], "heldout": ho["success"], "n": ho["n"],
+                      "viol": ho["violations"]})
+        print(f"[{lineage}] gen {g}: v{h['version']} held-out {ho['success']}/{ho['n']} (n={ho['n']}) viol={ho['violations']}")
+        if ho["success"] >= target * ho["n"] or g == gens:
+            break
+        before = h["version"]
+        run(body, 1, lineage=lineage)
+        if harness.latest(lineage)["version"] == before:  # rejected: one more proposal counts as a generation
+            continue
+    reached = next((c["gen"] for c in curve if c["heldout"] >= target * c["n"]), None)
+    return {"lineage": lineage, "start": start, "curve": curve, "gens_to_adapt": reached}
+
+
 def run(body: str, gens: int, n_train: int = 6, n_reg: int = 4, max_rejects: int = 3,
-        mtype: str = "single", difficulty: str = "medium") -> list[dict]:
+        mtype: str = "single", difficulty: str = "medium", lineage: str | None = None) -> list[dict]:
+    lineage = lineage or body
     train = mission_set(body, "train", n_train, difficulty, mtype)
     # regression always guards the original task (medium / single), so a new skill can't break the old one
     reg = mission_set(body, "regression", n_reg)
-    parent = harness.latest(body) or harness.save(harness.bootstrap(BODIES[body]))
+    parent = harness.latest(lineage)
+    if not parent:
+        h = harness.bootstrap(BODIES[body])
+        h["body_type"] = lineage
+        parent = harness.save(h)
     p_train, p_reg = evaluate(parent, train), evaluate(parent, reg)
-    print(f"[{body}] v{parent['version']} train {_brief(p_train)} reg {_brief(p_reg)}")
+    print(f"[{lineage}] v{parent['version']} train {_brief(p_train)} reg {_brief(p_reg)}")
     log, rejected, streak = [], [], 0
-    next_version = (db().harnesses.find_one({"body_type": body}, sort=[("version", -1)]) or parent)["version"] + 1
+    next_version = (db().harnesses.find_one({"body_type": lineage}, sort=[("version", -1)]) or parent)["version"] + 1
     for g in range(gens):
         if p_train["success"] == p_train["n"]:
             print(f"[{body}] train saturated; stopping")
@@ -62,7 +96,7 @@ def run(body: str, gens: int, n_train: int = 6, n_reg: int = 4, max_rejects: int
               f"  => {'ACCEPT' if decision['accepted'] else 'REJECT'} ({decision['reason']})")
         log.append(ev)
         if decision["accepted"]:
-            parent, p_train, p_reg, streak, rejected = harness.latest(body), c_train, c_reg, 0, []
+            parent, p_train, p_reg, streak, rejected = harness.latest(lineage), c_train, c_reg, 0, []
         else:
             rejected.append({"changes": edit.get("changes"), "reason": decision["reason"]})
             streak += 1

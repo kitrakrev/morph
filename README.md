@@ -18,6 +18,13 @@ persistent Atlas memory and checkpoint/resume.
 
 ## How it works
 
+![How it works](docs/img/viewer-how.png)
+
+Workflow graph v1 vs v17: the evolution agent added a feasibility check and a replan branch (v8) and a body
+rule (v17). The v1 drone program used `move_to` (a ground move); v17 flies every leg and charges after pickup.
+
+![Workflow graph](docs/img/viewer-workflow.png)
+
 ```
  user supplies: robot structure + terrain + goal          (never rules, tools or code)
         │
@@ -66,6 +73,16 @@ scored after acceptance and never used for selection.
 
 Earlier runs (free Nemotron planner, physics v1) are kept in Atlas for comparison: v1 1/6 → v8 2/6 train.
 
+### Hard tier and transfer
+
+- **Hard tier** (long-range loaded drone missions where a direct flight fails and only charge-after-pickup
+  works): v17, never evolved on these, scores train 5/6 (n=6) and held-out **4/6** (n=6). Three further edits
+  were all rejected by the gate for adding violations — including one that turned off no-fly avoidance (v19).
+- **Transfer:** quadruped and held-out hexapod score **12/12 held-out (n=12) from bootstrap** on medium
+  single-delivery missions: generations to adapt = 0 for ground bodies vs 1 accepted edit for the drone.
+  Cold vs warm (taxonomic) transfer is implemented (`engine/transfer.py`) but **not measured**: there was no
+  gap to close on that cell. Harder legged cells (hard/deadline: 3/6) are next.
+
 ## Evaluation matrix
 
 | Axis | Values |
@@ -98,6 +115,12 @@ without retraining, and never promotes a change that adds safety violations **on
   body). "No new violations" holds on those missions; it is not a safety guarantee.
 - **Fixed planner model.** Results are for Claude Haiku as planner; another model needs re-evaluation.
 - **Single robot per mission.** Fleet relay is generated in the matrix but not planned for yet.
+- **Charger choice is fixed code.** The mission compiler always picks the charger nearest the route, so the
+  harness cannot learn charger selection (the remaining hard-tier failures). Candidate for a tier-2 expansion.
+- **Memory retrieval hurt twice.** Letting the planner read past episodes (v14, v20) added no-fly violations;
+  the gate rejected both.
+- **Locked safety switches.** v19 tried to turn off no-fly avoidance; the gate rejected it on safety, and the
+  legality check now blocks that edit before any run.
 
 ### How the harness may expand (tiered by risk)
 
