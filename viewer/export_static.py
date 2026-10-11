@@ -13,13 +13,18 @@ dest = Path(sys.argv[1])
 (dest / "data").mkdir(parents=True, exist_ok=True)
 (dest / "out").mkdir(exist_ok=True)
 w = lambda name, obj: (dest / "data" / f"{name}.json").write_text(json.dumps(obj, default=str))
-w("bodies", ["drone"])
-w("results", server.results("drone"))
-lin = server.lineage("drone")
-w("lineage", lin)
-for h in lin:
-    w(f"templates-{h['version']}", server.templates("drone", h["version"]))
-w("trials", server.trials("drone", 17, None))
+BODIES = ["drone", "fixed_wing_vtol"]
+w("bodies", BODIES)
+lin = []
+for b in BODIES:  # drone keeps the un-suffixed files the page loads first
+    sfx = "" if b == "drone" else f"-{b}"
+    w("results" + sfx, server.results(b))
+    lb = server.lineage(b)
+    w("lineage" + sfx, lb)
+    for h in lb:
+        w(f"templates{sfx}-{h['version']}", server.templates(b, h["version"]))
+    w("trials" + sfx, server.trials(b, None, None))
+    lin += lb
 w("matrix", {"md": server.matrix_md()})
 vids = [v for v in server.videos() if v.startswith("pair-")]
 w("videos", vids)

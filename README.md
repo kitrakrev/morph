@@ -77,6 +77,19 @@ scored after acceptance and never used for selection.
 
 Earlier runs (free Nemotron planner, physics v1) are kept in Atlas for comparison: v1 1/6 → v8 2/6 train.
 
+### Second body that needed evolution: fixed-wing VTOL
+
+A human added one physics plugin (`fixed_wing` mode: min cruise altitude 3, take-off/landing only on open cells,
+turn cost, low energy per cell). The harness then adapted on its own:
+
+| Version | Edit | Train | Regression | Held-out | Violations | Gate |
+|---|---|---|---|---|---|---|
+| v1 | bootstrap from structure | 4/6 | 4/4 | 6/12 (n=12) | 16 train / 50 held-out | — |
+| **v2** | tool_specs: `avoid_nofly` on + rule "never route through no-fly" | **6/6** | 4/4 | **12/12 (n=12)** | **0** | accepted |
+
+The evolution agent read Raindrop's signals (no-fly violations) before proposing the edit. Honest note: the edit
+fixed no-fly routing, not fixed-wing-specific behaviour; the planner already cruised high enough on these missions.
+
 ### Hard tier and transfer
 
 - **Hard tier** (long-range loaded drone missions where a direct flight fails and only charge-after-pickup

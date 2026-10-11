@@ -54,7 +54,8 @@
 <script>
 const STATIC = !/^(localhost|127\.0\.0\.1)/.test(location.hostname);
 const staticPath = p => { const u = new URL(p, "http://x"), q = u.searchParams, name = u.pathname.replace("/api/", "");
-  return "data/" + name + (q.get("version") ? "-" + q.get("version") : "") + ".json"; };
+  const b = q.get("body"), sfx = b && b !== "drone" && name !== "bodies" ? "-" + b : "";
+  return "data/" + name + sfx + (q.get("version") ? "-" + q.get("version") : "") + ".json"; };
 const $ = s => document.querySelector(s), api = p => fetch(STATIC ? staticPath(p) : p).then(r => r.json());
 const vid = n => (STATIC ? "out/" : "/out/") + n;
 const esc = s => String(s ?? "").replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
