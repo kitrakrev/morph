@@ -1,7 +1,8 @@
-"""Four-type agent memory with the Agent Engine API shape, backed by Atlas collections.
+"""Four-type agent memory. Primary backend: MongoDB Atlas Agent Engine memory (agent-engine-sdk-memory,
+service-account auth). Fallback: Atlas collections with the same API (autoEmbed vector indexes).
 
 user_id = body category (e.g. "drone"). Taxonomic memory is shared across bodies.
-Search uses autoEmbed vector indexes (Voyage, embedded server-side by Atlas).
+MEMORY_BACKEND reports which backend is live ("agentengine" or "atlas-collections").
 """
 from __future__ import annotations
 
@@ -20,7 +21,72 @@ def _vsearch(coll: str, path: str, query: str, k: int, filt: dict | None = None)
     return docs
 
 
+def _ae_client():
+    """Agent Engine memory client via a project service account, or None if unavailable."""
+    import os
+    import requests
+    from dotenv import dotenv_values
+    env = {**dotenv_values(), **os.environ}
+    if os.getenv("MORPH_MEMORY", "agentengine") != "agentengine" or not env.get("AE_CLIENT_ID"):
+        return None
+    try:
+        from agent_engine_sdk_memory import Memory as AEMemory
+        tok = requests.post("https://agentengine.mongodb.com/api/v1/oauth/token", timeout=20,
+                            auth=(env["AE_CLIENT_ID"], env["AE_CLIENT_SECRET"]),
+                            data={"grant_type": "client_credentials"}).json()["access_token"]
+        ae = AEMemory(service_account_token=tok)
+        ae.list_domains()  # readiness probe: raises MemoryNotProvisionedError etc. until the server is up
+        return ae
+    except Exception as e:
+        print(f"[memory] Agent Engine unavailable ({str(e)[:80]}); using Atlas collections")
+        return None
+
+
+_AE = None
+MEMORY_BACKEND = "atlas-collections"
+
+
+def backend():
+    global _AE, MEMORY_BACKEND
+    if _AE is None:
+        _AE = _ae_client() or False
+        MEMORY_BACKEND = "agentengine" if _AE else "atlas-collections"
+    return _AE or None
+
+
+class AgentEngineMemory:
+    """Same API as Memory, delegating to the hosted Agent Engine memory server."""
+
+    def __init__(self, ae, user_id: str, session_id: str = "default"):
+        from agent_engine_sdk_memory import MemoryRequestContext
+        self.s = ae.bind(MemoryRequestContext(user_id=user_id, session_id=session_id))
+
+    def save_episode(self, title, content, **meta):
+        return self.s.save_episode(title=title, content=content)
+
+    def search_episodes(self, query, k=3):
+        return [{"content": getattr(h, "content", str(h))} for h in self.s.search_episodes(query, top_k=k)]
+
+    def save_procedure(self, procedure, description, content):
+        return self.s.save_procedure(procedure=procedure, description=description, content=content)
+
+    def discover_procedures(self, query, k=2):
+        return [{"content": getattr(h, "content", str(h))} for h in self.s.discover_procedures(query)][:k]
+
+    def save_semantic(self, label, text):
+        return self.s.save_semantic(label=label, text=text)
+
+    def search_semantic(self, query, k=3):
+        return [{"text": getattr(h, "text", str(h))} for h in self.s.search_semantic(query)][:k]
+
+
 class Memory:
+    def __new__(cls, user_id: str, session_id: str = "default"):
+        ae = backend()
+        if ae is not None:
+            return AgentEngineMemory(ae, user_id, session_id)
+        return super().__new__(cls)
+
     def __init__(self, user_id: str, session_id: str = "default"):
         self.user_id, self.session_id = user_id, session_id
 
