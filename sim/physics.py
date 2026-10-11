@@ -42,7 +42,9 @@ class Body:
     @staticmethod
     def from_structure(s: dict) -> "Body":
         loco = s.get("locomotion", {})
-        if "rotors" in loco:
+        if "rotors" in loco and "wheels" in loco:  # drive-and-fly body (e.g. Caltech M4 Morphobot)
+            kind, modes = "hybrid", ("wheel", "flight")
+        elif "rotors" in loco:
             kind, modes = "drone", ("flight",)
         elif "legs" in loco:
             kind, modes = ("quadruped" if loco["legs"] == 4 else "hexapod"), ("legs",)

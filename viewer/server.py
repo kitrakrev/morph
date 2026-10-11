@@ -20,9 +20,13 @@ PORT = int(os.getenv("PORT", "8765"))
 
 
 def _era_cutoff() -> float:
-    """Trials before the first Claude-planner evaluation belong to the earlier run (free model, physics v1)."""
-    ev = db().evaluations.find_one({"model": {"$regex": "^claude-code"}}, sort=[("ts", 1)])
-    return (ev["ts"] - 3600) if ev else 0.0
+    """Trials before the first Claude call belong to the earlier run (free model, physics v1)."""
+    c = db().llm_cache.find_one({"tier": "claude"}, sort=[("ts", 1)])
+    return c["ts"] - 60 if c else 0.0
+
+
+def bodies() -> list[str]:
+    return sorted(db().harnesses.distinct("body_type"))
 
 
 def results(body: str) -> list[dict]:
@@ -33,13 +37,14 @@ def results(body: str) -> list[dict]:
         if k not in latest or t["ts"] > latest[k]["ts"]:
             latest[k] = t
     agg = defaultdict(lambda: defaultdict(lambda: {"ok": 0, "n": 0, "viol": 0, "ts": 0}))
-    for (v, split, _), t in latest.items():
-        a = agg[v][split]
+    for (v, split, mid), t in latest.items():
+        a = agg[v][split + (":hard" if "long_range" in mid else ":variant" if mid.count("-") > 2 else "")]
         a["ok"] += int(t["score"]["success"])
         a["n"] += 1
         a["viol"] += t["score"]["violations_total"]
         a["ts"] = max(a["ts"], t["ts"])
-    hs = {h["version"]: h for h in db().harnesses.find({"body_type": body}, {"version": 1, "verdict": 1, "diff": 1})}
+    hs = {h["version"]: h for h in db().harnesses.find({"body_type": body},
+                                                       {"version": 1, "verdict": 1, "diff": 1, "rationale": 1})}
     evs = {e["version"]: e for e in db().evaluations.find({"body": body})}
     rows = []
     for v in sorted(set(agg) | set(hs)):
@@ -51,6 +56,7 @@ def results(body: str) -> list[dict]:
                      "era": "current" if latest_ts >= cutoff else "earlier",
                      "splits": {s: {k: x[k] for k in ("ok", "n", "viol")} for s, x in sp.items()},
                      "reason": evs.get(v, {}).get("reason"), "prediction": evs.get(v, {}).get("prediction"),
+                     "rationale": hs.get(v, {}).get("rationale"), "checks": evs.get(v, {}).get("checks"),
                      "measured": evs.get(v, {}).get("measured")})
     return rows
 
@@ -76,6 +82,7 @@ def trials(body: str, version: int | None, split: str | None) -> list[dict]:
     if split:
         q["split"] = split
     return [{"mission": t["mission_id"], "version": t["harness_version"], "split": t["split"],
+             "set": "hard tier (long-range)" if "long_range" in t["mission_id"] else "original",
              "ok": t["score"]["success"], "energy": t["score"]["energy_wh"], "viol": t["score"]["violations_total"],
              "template": t.get("which"), "diagnosis": t.get("diagnosis", ""),
              "actions": " > ".join(c["skill"] for c in t.get("program", []))}
@@ -145,6 +152,8 @@ class Handler(SimpleHTTPRequestHandler):
         q = {k: v[0] for k, v in parse_qs(u.query).items()}
         body = q.get("body", "drone")
         try:
+            if u.path == "/api/bodies":
+                return self._json(bodies())
             if u.path == "/api/results":
                 return self._json(results(body))
             if u.path == "/api/lineage":

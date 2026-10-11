@@ -25,13 +25,15 @@ BODIES = {
                   "sensors": ["camera", "lidar_10m"], "size_m": [0.9, 0.4, 0.6]},
     "railcart": {"locomotion": {"rail": True}, "mass_kg": 80, "battery_wh": 300, "payload_bay_kg": 40,
                  "sensors": ["camera"], "size_m": [1.5, 0.8, 0.6]},
+    "hybrid": {"locomotion": {"wheels": 4, "rotors": 4}, "mass_kg": 4.0, "battery_wh": 70, "payload_bay_kg": 1.5,
+               "sensors": ["camera", "lidar_20m"], "size_m": [0.7, 0.6, 0.35]},
     "hexapod": {"locomotion": {"legs": 6}, "mass_kg": 18, "battery_wh": 120, "payload_bay_kg": 4,
                 "sensors": ["camera", "lidar_10m"], "size_m": [0.8, 0.6, 0.4]},
 }
 HELDOUT_BODIES = ("hexapod",)
-MODE = {"rover": "wheel", "tracked": "tracks", "quadruped": "legs", "hexapod": "legs", "railcart": "rail",
+MODE = {"hybrid": "flight", "rover": "wheel", "tracked": "tracks", "quadruped": "legs", "hexapod": "legs", "railcart": "rail",
         "drone": "flight"}
-DEFAULT_DIMS = {"drone": 3, "railcart": 1}
+DEFAULT_DIMS = {"drone": 3, "hybrid": 3, "railcart": 1}
 DIFFICULTIES = ("easy", "medium", "hard")
 MISSION_TYPES = ("single", "heavy", "deadline", "multi_stop", "relay", "long_range")
 ITEMS = [("water", 4.0), ("radio", 0.8), ("supply_kit", 2.5), ("blanket", 1.2)]
@@ -58,6 +60,8 @@ def make_mission(body_kind: str, seed: int, split: str, dims: int | None = None,
     item, kg = ITEMS[int(rng.integers(len(ITEMS)))]
     if body_kind == "drone":
         item, kg = ("radio", 0.8) if rng.random() < 0.6 else ("blanket", 0.5)
+    if body_kind == "hybrid":
+        item, kg = ("radio", 0.8) if rng.random() < 0.5 else ("blanket", 1.2)
     spec = BODIES[body_kind]
     if mtype == "heavy":
         item, kg = "heavy_kit", round(0.9 * spec["payload_bay_kg"], 2)
@@ -101,6 +105,8 @@ def make_mission(body_kind: str, seed: int, split: str, dims: int | None = None,
         }
         if mtype == "long_range" and not _needs_recharge(m):
             continue
+        if body_kind == "hybrid" and not _needs_mode_choice(m):
+            continue
         return m
     return None
 
@@ -142,3 +148,15 @@ def matrix(bodies=tuple(BODIES), difficulties=DIFFICULTIES, mtypes=MISSION_TYPES
     """All (body, dims, difficulty, mission type) cells of the evaluation matrix."""
     for b, d, t in itertools.product(bodies, difficulties, mtypes):
         yield {"body": b, "dims": DEFAULT_DIMS.get(b, 2), "difficulty": d, "mtype": t}
+
+
+def _needs_mode_choice(m: dict) -> bool:
+    """Hybrid filter (true physics): flying every leg fails, but some drive/fly mix succeeds."""
+    from sim import tier2, verifier
+    r, it, to = m["robots"][0]["id"], m["items"][0], m["goal"]["deliver"]["to"]
+    leg = lambda mode, pos: ({"robot": r, "skill": "fly_to", "args": {"pos": pos, "alt": 1, "avoid_nofly": True}}
+                             if mode == "fly" else {"robot": r, "skill": "move_to", "args": {"pos": pos}})
+    plan = lambda a, b: [leg(a, it["pos"]), {"robot": r, "skill": "pick", "args": {"item": it["id"]}},
+                         leg(b, to), {"robot": r, "skill": "drop", "args": {"item": it["id"]}}]
+    ok = lambda a, b: verifier.score(m, tier2.simulate(m, plan(a, b)))["success"]
+    return not ok("fly", "fly") and any(ok(a, b) for a, b in (("drive", "drive"), ("drive", "fly"), ("fly", "drive")))

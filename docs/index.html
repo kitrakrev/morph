@@ -31,8 +31,10 @@
   .dg .box { fill:var(--panel); stroke:#8a8f8b; stroke-width:1.2 } .dg .fixed { fill:#eef1f6; stroke:#5b6b8c }
   .dg .evo { fill:#e9f6ee; stroke:#2e7d32 } .dg .atlas { fill:#e7f3ee; stroke:#00684a; stroke-width:1.6 }
   .dg .rd { fill:#eef0fb; stroke:#4b57c8 } .dg .gate { fill:#fff6e5; stroke:#c77700; stroke-width:1.6 }
-  .dg .lane { fill:none; stroke:var(--line); stroke-dasharray:4 4 } .dg .t { font-size:12px } .dg .s { font-size:10.5px; fill:var(--muted) }
-  .dg .h { font-size:13px; font-weight:700 } .dg .ar { stroke:#7a7f7b; stroke-width:1.4; fill:none; marker-end:url(#ah) }
+  .dg .lane { fill:none; stroke:var(--line); stroke-dasharray:4 4 } .dg .t { font-size:13px } .dg .s { font-size:11px; fill:var(--muted) }
+  .dg .h { font-size:13px; font-weight:700 } .dg .sec { font-size:11.5px; font-weight:700; letter-spacing:.06em; fill:var(--muted) }
+  .dg .num { fill:#00684a } .dg .note { font-size:11px; fill:var(--muted); font-style:italic }
+  .legend { display:flex; gap:16px; flex-wrap:wrap; margin-bottom:8px; font-size:12px; color:var(--muted) } .lg { display:inline-flex; align-items:center; gap:6px } .dg .ar { stroke:#7a7f7b; stroke-width:1.4; fill:none; marker-end:url(#ah) }
   .dg .arg { stroke:#2e7d32 } .dg .arr { stroke:#c62828; stroke-dasharray:5 3 } .dg .lbl { font-size:10px; fill:var(--muted) }
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .dg .fixed { fill:#1e2533 } :root:not([data-theme="light"]) .dg .evo { fill:#16291d }
     :root:not([data-theme="light"]) .dg .atlas { fill:#12281f } :root:not([data-theme="light"]) .dg .rd { fill:#1b1e33 } :root:not([data-theme="light"]) .dg .gate { fill:#2e2414 } }
@@ -42,6 +44,7 @@
 <body>
 <nav>
   <h1>Morph</h1><div class="tag">the fleet that learns new bodies</div>
+  <div style="margin:0 6px 14px"><label class="tag" for="bsel">robot body</label><br><select id="bsel" style="width:100%"></select></div>
   <a data-p="overview">Overview</a><a data-p="how">How it works</a><a data-p="results">Results</a><a data-p="lineage">Lineage &amp; edits</a>
   <a data-p="workflow">Workflow graph</a><a data-p="replays">Replays</a><a data-p="runs">Runs</a>
   <a data-p="evolves">What evolves</a><a data-p="matrix">Evaluation matrix</a><a data-p="feed">Live feed</a>
@@ -56,7 +59,7 @@ const $ = s => document.querySelector(s), api = p => fetch(STATIC ? staticPath(p
 const vid = n => (STATIC ? "out/" : "/out/") + n;
 const esc = s => String(s ?? "").replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
 const frac = x => x ? `${x.ok}/${x.n}` : "—";
-let feedTimer;
+let feedTimer, BODY = new URLSearchParams(location.search).get("body") || "drone";
 
 const pages = {
  async overview() {
@@ -67,86 +70,105 @@ const pages = {
   <p class="sub">Robot fleets change bodies. Morph's harness rewrites its own rules, limits and workflow from its own failures, and keeps a change only when a locked verifier proves it on missions the agent never saw. The model never changes.</p>
   <div class="card"><div class="muted">Held-out drone missions, same planner model (Claude Haiku)</div>
    <div class="big">${frac(h1)} → ${frac(hb?.splits?.heldout)}</div>
-   <div>v1 (bootstrap from structure) → v${hb?.version ?? "?"} (evolved) · violations on promoted version: <b>${hb?.splits?.heldout?.viol ?? "—"}</b> · n = ${hb?.splits?.heldout?.n ?? "—"}</div></div>
+   <div>v1 (bootstrap from structure) → v${hb?.version ?? "?"} (evolved) · violations: <b>${hb?.splits?.heldout?.viol ?? "—"}</b> · n = ${hb?.splits?.heldout?.n ?? "—"} held-out missions on unseen maps</div>
+   ${hb?.splits?.["heldout:hard"] ? `<div class="muted" style="margin-top:6px">Reported separately — hard tier (long-range loaded missions, never tuned on): v${hb.version} ${frac(hb.splits["heldout:hard"])} held-out, ${hb.splits["heldout:hard"].viol} violations.</div>` : ""}</div>
   <div class="card"><b>The loop</b><pre>mission → planner (fixed model) → workflow graph → simulate (true physics) → locked verifier
    → Raindrop signal + Atlas failure memory → evolution agent proposes ONE bounded edit + prediction
    → gate: train ↑, safety not worse, no regression, cost per success → new version (transaction) → repeat</pre></div>
-  <div class="card"><b>Hero clip</b> — same mission, same model, harness v1 vs v17<br><br>
+  <div class="card"><b>Hero clip</b> — held-out mission heldout-drone-903 (original set), same model, harness v1 vs v17<br><br>
    <video src="${vid("pair-heldout-drone-903-v1-v17.mp4")}" controls autoplay muted loop></video></div>`;
  },
 
  async how() {
-  const B = (x,y,w,h,cls,title,sub) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="8" class="box ${cls}"/>
-    <text x="${x+w/2}" y="${y+(sub?18:h/2+4)}" text-anchor="middle" class="t"><tspan font-weight="600">${title}</tspan></text>` +
-    (sub||[]).map((l,i)=>`<text x="${x+w/2}" y="${y+34+i*13}" text-anchor="middle" class="s">${l}</text>`).join("");
-  const A = (d,cls="",lbl="",lx=0,ly=0) => `<path d="${d}" class="ar ${cls}"/>` + (lbl?`<text x="${lx}" y="${ly}" class="lbl">${lbl}</text>`:"");
-  const svg = `<svg class="dg" viewBox="0 0 1100 900" width="100%" role="img" aria-label="Morph system diagram">
+  const W = 168, H = 84, G = 30, X = i => 24 + i * (W + G);
+  const B = (x, y, cls, title, lines, w = W, h = H) => `<g><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="10" class="box ${cls}"/>
+    <text x="${x + 14}" y="${y + 24}" class="t"><tspan font-weight="650">${title}</tspan></text>` +
+    lines.map((l, i) => `<text x="${x + 14}" y="${y + 44 + i * 15}" class="s">${l}</text>`).join("") + `</g>`;
+  const A = (d, cls = "", lbl = "", lx = 0, ly = 0, anchor = "start") => `<path d="${d}" class="ar ${cls}"/>` +
+    (lbl ? `<text x="${lx}" y="${ly}" class="lbl" text-anchor="${anchor}">${lbl}</text>` : "");
+  const Hd = (y, n, txt) => `<text x="24" y="${y}" class="sec"><tspan class="num">${n}</tspan>  ${txt}</text>`;
+  const y1 = 150, yR = 262, yD = 382, y2 = 520, yN = 640, R = X(5) + W;
+  const svg = `<svg class="dg" viewBox="0 0 ${R + 24} 726" width="100%" role="img" aria-label="Morph system diagram">
    <defs><marker id="ah" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="#7a7f7b"/></marker></defs>
-   <text x="20" y="24" class="h">INPUT (the only thing a user supplies)</text>
-   ${B(20,34,330,62,"",'Robot structure + terrain + goal',['rotors / legs / wheels, mass, battery, payload','map seed + difficulty, deliver item to target'])}
-   ${A("M350,65 L410,65")}
-   ${B(410,34,250,62,"",'Bootstrap',['derives harness v1 from structure','refuses unknown locomotion'])}
-   ${A("M660,65 L730,65")}
-   ${B(730,24,350,84,"evo",'Harness vN  (evolvable DATA, versioned in Atlas)',['workflow graph · rules · constraints · tool_specs','beliefs (energy model, reserve) · reports_read','retrieval_policy · model_routing · budgets · skills'])}
+   ${Hd(26, "0", "INPUT — the only thing a user supplies")}
+   ${B(X(0), 40, "", "Robot spec", ["structure · terrain · goal"], W, 62)}
+   ${A(`M${X(0) + W},71 L${X(1)},71`)}
+   ${B(X(1), 40, "", "Bootstrap", ["structure → harness v1"], W, 62)}
+   ${A(`M${X(1) + W / 2},102 L${X(1) + W / 2},118 L${X(0) + W / 2},118 L${X(0) + W / 2},${y1}`)}
 
-   <rect x="10" y="128" width="1080" height="330" rx="10" class="lane"/>
-   <text x="20" y="148" class="h">LOOP 1 — run missions with harness vN (fixed code executes the harness's workflow graph)</text>
-   ${B(20,165,190,70,"",'Planner (Claude Haiku)',['fixed model all day','1 plan template / version'])}
-   ${A("M905,108 L905,130 L115,130 L115,165")} <text x="560" y="125" class="lbl">rules, tool_specs, memory per retrieval_policy</text>
-   ${A("M210,200 L250,200")}
-   ${B(250,165,170,70,"",'Compile per mission',['fill $ITEM_POS, $DEST,','$CHARGER · clamp to tool_specs'])}
-   ${A("M420,200 L460,200")}
-   ${B(460,165,150,70,"evo",'tier1_check',['feasibility <1 s','uses harness BELIEFS'])}
-   ${A("M610,190 L700,190","arg","pass",640,184)}
-   ${A("M535,235 L535,280","arr","fail & budgets.replans≥1",545,262)}
-   ${B(450,280,170,56,"evo",'replan',['switch to fallback template'])}
-   ${A("M620,308 L700,222","arg")}
-   ${B(700,165,170,70,"fixed",'tier2_sim  🔒',['TRUE physics','energy, altitude, wind'])}
-   ${A("M870,200 L910,200")}
-   ${B(910,165,170,70,"fixed",'Verifier  🔒',['delivered? violations?','reserve, deadline'])}
-   ${A("M995,235 L995,360")}
-   ${B(800,360,280,82,"atlas",'MongoDB Atlas',['trials · failures (autoEmbed) · episodic memory','metrics (time-series) · checkpoints (resume)','held-out outcomes never reach agent memory'])}
-   ${A("M800,400 L640,400")}
-   ${B(400,365,240,70,"rd",'Raindrop',['event per trial + signals: battery_death,','nofly_violation, reserve_breach, delivered'])}
-   <text x="34" y="390" class="s">Not in workflow v1: tier1_check and replan were</text>
-   <text x="34" y="404" class="s">added by the evolution agent (v8), then rules (v17).</text>
+   ${Hd(y1 - 14 + 0, "1", "LOOP 1 — RUN MISSIONS  (fixed code executes the harness's own workflow graph)")}
+   ${B(X(0), y1, "evo", "Harness vN", ["evolvable data in Atlas", "workflow · rules · beliefs …"])}
+   ${A(`M${X(0) + W},${y1 + H / 2} L${X(1)},${y1 + H / 2}`)}
+   ${B(X(1), y1, "", "Planner", ["Claude Haiku · fixed all day", "1 plan template / version"])}
+   ${A(`M${X(1) + W},${y1 + H / 2} L${X(2)},${y1 + H / 2}`)}
+   ${B(X(2), y1, "evo", "tier1_check", ["fast feasibility (<1 s)", "uses harness beliefs"])}
+   ${A(`M${X(2) + W},${y1 + H / 2} L${X(3)},${y1 + H / 2}`, "arg", "pass", X(2) + W + 6, y1 + H / 2 - 6)}
+   ${B(X(3), y1, "fixed", "tier2_sim  🔒", ["true physics", "energy · altitude · wind"])}
+   ${A(`M${X(3) + W},${y1 + H / 2} L${X(4)},${y1 + H / 2}`)}
+   ${B(X(4), y1, "fixed", "Verifier  🔒", ["delivered? violations?", "reserve · deadline"])}
+   ${A(`M${X(4) + W},${y1 + H / 2} L${X(5)},${y1 + H / 2}`)}
+   ${B(X(5), y1, "rd", "Raindrop", ["event per trial", "failure signals"])}
+   ${A(`M${X(2) + W / 2},${y1 + H} L${X(2) + W / 2},${yR}`, "arr", "fail", X(2) + W / 2 + 8, y1 + H + 22)}
+   ${B(X(2), yR, "evo", "replan", ["switch to fallback program"], W, 58)}
+   ${A(`M${X(2) + W},${yR + 29} L${X(3) + W / 2},${yR + 29} L${X(3) + W / 2},${y1 + H}`, "arg")}
+   <text x="${X(3) + W / 2 + 14}" y="${yR + 26}" class="note">tier1_check + replan were added</text>
+   <text x="${X(3) + W / 2 + 14}" y="${yR + 42}" class="note">by the evolution agent (v8)</text>
 
-   <rect x="10" y="478" width="1080" height="400" rx="10" class="lane"/>
-   <text x="20" y="498" class="h">LOOP 2 — evolve the harness (on plateau or when train isn't saturated)</text>
-   ${B(20,515,250,92,"atlas",'Retrieve evidence from Atlas',['$rankFusion = autoEmbed vector','+ keyword search over failures','action sequences of failed trials'])}
-   ${A("M940,442 L940,470 L145,470 L145,515")}
-   ${A("M270,560 L320,560")}
-   ${B(320,515,250,92,"",'Evolution agent (Claude Sonnet)',['proposes ONE edit: ≤3 / 2 / 1 fields','by lineage age, + numeric prediction','sees train/regression only, never held-out'])}
-   ${A("M570,560 L620,560")}
-   ${B(620,515,200,92,"evo",'Candidate vN+1',['apply edit to a copy','validate: locked fields,','primitives only'])}
-   ${A("M820,560 L870,560")}
-   ${B(870,515,210,92,"",'Run Loop 1 on candidate',['train missions (+ hard tier)','regression = original task','same planner model'])}
-   ${A("M975,607 L975,650")}
-   ${B(640,650,440,110,"gate",'GATE  🔒  (all must pass)',['legal edit · train strictly ↑ · safety violations not worse','no regression on original missions','cost = tool calls per successful delivery ≤ parent × (1.1 + 0.1·gain)','verdict + evaluation written in ONE Atlas transaction'])}
-   ${A("M640,690 L470,690","arg","accept",560,684)}
-   ${B(260,655,210,70,"evo",'Promote → harness vN+1',['parent link + diff','becomes the new baseline'])}
-   ${A("M860,760 L860,800","arr","reject",870,790)}
-   ${B(640,800,440,60,"",'Rejected: logged with reason; agent sees it next round',['e.g. v14: +retrieval → 30 no-fly violations → blocked'])}
-   ${A("M260,690 L16,690 L16,118 L905,118","arg")} <text x="22" y="470" class="lbl" transform="rotate(-90 22 470)">new baseline → Harness vN</text>
-   ${B(80,790,480,70,"fixed",'Held-out scoring (after acceptance only) 🔒',['12 missions on unseen maps · never used for selection','reported with n · drone: v1 0/12 → v17 12/12, 0 violations'])}
+   ${Hd(yD - 14, "2", "DATA — MongoDB Atlas")}
+   ${A(`M${X(4) + W / 2},${y1 + H} L${X(4) + W / 2},${yD}`)}
+   ${B(X(1), yD, "atlas", "MongoDB Atlas", ["trials · failures (autoEmbed, Voyage) · episodic memory · time-series metrics · checkpoints",
+      "harness lineage (unique version index) · evaluations · held-out outcomes never reach agent-readable memory"], R - X(1), 66)}
+
+   ${Hd(y2 - 14, "3", "LOOP 2 — EVOLVE THE HARNESS  (reads right → left)")}
+   ${A(`M${X(5) + W / 2},${yD + 66} L${X(5) + W / 2},${y2}`)}
+   ${B(X(5), y2, "atlas", "Evidence", ["$rankFusion: vector +", "keyword over failures"])}
+   ${A(`M${X(5)},${y2 + H / 2} L${X(4) + W},${y2 + H / 2}`)}
+   ${B(X(4), y2, "", "Evolution agent", ["Claude Sonnet", "ONE edit + prediction"])}
+   ${A(`M${X(4)},${y2 + H / 2} L${X(3) + W},${y2 + H / 2}`)}
+   ${B(X(3), y2, "evo", "Candidate vN+1", ["legality check:", "locked fields, primitives"])}
+   ${A(`M${X(3)},${y2 + H / 2} L${X(2) + W},${y2 + H / 2}`)}
+   ${B(X(2), y2, "", "Re-run Loop 1", ["train + regression", "same planner model"])}
+   ${A(`M${X(2)},${y2 + H / 2} L${X(1) + W},${y2 + H / 2}`)}
+   ${B(X(1), y2, "gate", "Gate  🔒", ["train ↑ · safety not worse", "no regression · cost"])}
+   ${A(`M${X(1)},${y2 + H / 2} L${X(0) + W},${y2 + H / 2}`, "arg", "accept", X(1) - G / 2, y2 + H / 2 - 7, "middle")}
+   ${B(X(0), y2, "evo", "Promote", ["one Atlas transaction", "new baseline"])}
+   ${A(`M${X(0)},${y2 + H / 2} L10,${y2 + H / 2} L10,${y1 + H / 2} L${X(0)},${y1 + H / 2}`, "arg")}
+   <text x="14" y="${(y1 + y2) / 2 + 60}" class="lbl" transform="rotate(-90 14 ${(y1 + y2) / 2 + 60})">promoted → new harness vN</text>
+   ${A(`M${X(1) + W / 2},${y2 + H} L${X(1) + W / 2},${yN}`, "arr", "reject → logged, agent sees it", X(1) + W / 2 + 8, y2 + H + 22)}
+   ${B(X(1), yN, "", "Rejected", ["e.g. v14: 30 no-fly violations", "v19: tried to disable no-fly"], W + W / 2, 70)}
+   ${B(X(3), yN, "fixed", "Held-out scoring  🔒", ["after acceptance only · never used for selection", "drone: v1 0/12 → v17 12/12 (n=12), 0 violations"], R - X(3), 70)}
   </svg>`;
-  return `<h2>How it works</h2><p class="sub">Two loops. Blue 🔒 boxes are fixed code no agent can edit; green boxes are harness data the evolution agent changes; amber is the gate; teal is Atlas; indigo is Raindrop.</p>
-   <div class="card">${svg}</div>
-   <div class="card"><b>Why this is harness learning, not prompt tuning:</b> the edits change the <i>workflow graph</i> (a new feasibility check and a replan branch that switches to a safer fallback program), the harness's own <i>beliefs</i> used by that check, <i>budgets</i>, and body-specific <i>rules</i>. The model, physics and verifier never change.</div>`;
+  const legend = [["fixed","fixed code 🔒"],["evo","evolvable harness data"],["gate","gate 🔒"],["atlas","MongoDB Atlas"],["rd","Raindrop"]]
+    .map(([c,l]) => `<span class="lg"><svg width="14" height="14" class="dg"><rect width="14" height="14" rx="3" class="box ${c}"/></svg>${l}</span>`).join("");
+  return `<h2>How it works</h2><p class="sub">One cycle: Loop 1 runs missions with the current harness; Loop 2 proposes one edit, re-runs, and the gate decides. The model never changes.</p>
+   <div class="card"><div class="legend">${legend}</div>${svg}</div>
+   <div class="card"><b>Why this is harness learning, not prompt tuning:</b> accepted edits changed the <i>workflow graph</i> (a feasibility check and a replan branch to a safer fallback, v8), the harness's <i>beliefs</i> and <i>budgets</i>, and body-specific <i>rules</i> (v17). The model, physics and verifier never change.</div>`;
  },
  async results() {
-  const rows = await api("/api/results");
+  const rows = await api(`/api/results?body=${BODY}`);
+  const WHY = {train_improves: "did not deliver more train missions than its parent", safety_not_worse: "added safety violations",
+    no_regression: "broke missions the parent already passed", cost_ok: "used more tool calls per delivery",
+    valid_eval: "too many failed tool calls to trust the run", legal_edit: "tried to change a locked field"};
+  const explain = r => {
+    if (r.verdict === "bootstrap") return "Starting harness derived from the robot's structure only.";
+    const failed = Object.entries(r.checks || {}).filter(([k, v]) => !v).map(([k]) => WHY[k] || k);
+    const verdict = r.verdict === "accepted" ? "<span class='ok'>Kept:</span> passed every gate check."
+      : `<span class='bad'>Blocked:</span> ${failed.join("; ") || esc(r.reason || "")}.`;
+    return `${verdict}${r.rationale ? `<div class="muted">Agent's reason: ${esc(r.rationale)}</div>` : ""}`; };
+  const pm = r => r.prediction ? `${r.prediction.train_success_delta >= 0 ? "+" : ""}${r.prediction.train_success_delta} / ${r.measured?.train_success_delta >= 0 ? "+" : ""}${r.measured?.train_success_delta ?? "?"}` : "";
   const tr = r => `<tr><td>v${r.version}</td><td>${r.verdict === "accepted" ? '<span class="pill acc">accepted</span>' : r.verdict === "rejected" ? '<span class="pill rej">rejected</span>' : esc(r.verdict)}</td>
-   <td>${esc(r.fields.join(", "))}</td><td>${frac(r.splits.train)}</td><td>${frac(r.splits.regression)}</td><td>${frac(r.splits.heldout)}</td>
-   <td>${["train","regression","heldout"].reduce((a,s)=>a+(r.splits[s]?.viol||0),0)}</td>
-   <td class="muted">${esc(r.reason || "")}</td><td class="muted">${r.prediction ? esc(JSON.stringify(r.prediction)) + " / " + esc(JSON.stringify(r.measured)) : ""}</td></tr>`;
-  const head = `<tr><th>ver</th><th>verdict</th><th>edited fields</th><th>train</th><th>regression</th><th>held-out</th><th>violations</th><th>gate reason</th><th>predicted / measured</th></tr>`;
-  return `<h2>Results — drone</h2><p class="sub">Latest run per mission. Every score shows k/n. Held-out is scored after acceptance and never used for selection.</p>
-   <div class="card"><b>Current run</b> (planner Claude Haiku, evolution Claude Sonnet, physics v2)<table>${head}${rows.filter(r=>r.era==="current").map(tr).join("")}</table></div>
-   <div class="card"><b>Earlier run</b> (free Nemotron planner, physics v1) — kept for comparison<table>${head}${rows.filter(r=>r.era!=="current").map(tr).join("")}</table></div>`;
+   <td>${esc(r.fields.join(", "))}</td><td>${frac(r.splits.train)}</td><td>${frac(r.splits.regression)}</td><td><b>${frac(r.splits.heldout)}</b></td>
+   <td>${frac(r.splits["heldout:hard"])}</td><td>${["train","regression","heldout"].reduce((a,s)=>a+(r.splits[s]?.viol||0),0)}</td><td>${pm(r)}</td><td style="max-width:420px">${explain(r)}</td></tr>`;
+  const head = `<tr><th>ver</th><th>verdict</th><th>edited</th><th>train</th><th>regr.</th><th>held-out (n=12)</th><th>hard tier held-out</th><th>viol. (original sets)</th><th>predicted / measured Δtrain</th><th>what happened</th></tr>`;
+  const cur = rows.filter(r => r.era === "current"), old = rows.filter(r => r.era !== "current");
+  const nRej = rows.filter(r => r.verdict === "rejected").length, nAcc = rows.filter(r => r.verdict === "accepted").length;
+  return `<h2>Results — ${BODY}</h2><p class="sub">Latest run per mission. Every score shows k/n. Held-out is scored after acceptance and never used for selection.</p>
+   <div class="card"><b>Why so many rejections?</b> ${nAcc} accepted, ${nRej} rejected. That ratio is the point: the evolution agent may propose anything legal, and the gate keeps only edits that deliver more missions with no new violations and no regression. Most rejected edits only nudged the harness's energy beliefs, which changed nothing on the missions (Δtrain = 0), or traded deliveries for violations (v14: planner read past episodes and flew through the no-fly zone 30 times; v19: tried to switch off no-fly avoidance). A rejection costs one evaluation; a bad promotion would cost real missions.</div>
+   <div class="card"><b>Current run</b> (planner Claude Haiku, evolution Claude Sonnet, physics v2)<table>${head}${cur.map(tr).join("")}</table></div>
+   ${old.length ? `<div class="card"><b>Earlier run</b> (free Nemotron planner, physics v1) — kept for comparison; scores here are not comparable with the current run<table>${head}${old.map(tr).join("")}</table></div>` : ""}`;
  },
  async lineage() {
-  const L = await api("/api/lineage");
+  const L = await api(`/api/lineage?body=${BODY}`);
   return `<h2>Lineage &amp; edits</h2><p class="sub">Every candidate the evolution agent proposed, its diff, the gate's checks, and the failures it retrieved from Atlas ($rankFusion).</p>` +
    L.map(h => `<div class="card"><b>v${h.version}</b> ← v${h.parent ?? "—"} &nbsp; ${h.verdict === "accepted" ? '<span class="pill acc">accepted</span>' : h.verdict === "rejected" ? '<span class="pill rej">rejected</span>' : `<span class="pill">${esc(h.verdict)}</span>`}
     <span class="muted">${esc(h.model || "")}</span>
@@ -156,9 +178,9 @@ const pages = {
     ${h.retrieved?.length ? `<details><summary class="muted">retrieved similar failures (${h.retrieved.length})</summary><pre>${h.retrieved.map(esc).join("\n")}</pre></details>` : ""}</div>`).join("");
  },
  async workflow() {
-  const L = await api("/api/lineage");
+  const L = await api(`/api/lineage?body=${BODY}`);
   const opts = L.map(h => `<option value="${h.version}" ${h.version===17?"selected":""}>v${h.version} (${h.verdict})</option>`).join("");
-  const detail = async h => { const T = await api(`/api/templates?version=${h.version}`);
+  const detail = async h => { const T = await api(`/api/templates?body=${BODY}&version=${h.version}`);
     return graph(h, L[0]) + `<div class="muted" style="margin:6px 0">budgets: ${esc(JSON.stringify(h.budgets || {}))}</div>` +
       (T.primary ? `<div><b>primary program</b> (example mission)</div><pre>${esc(T.primary.join("\n"))}</pre>` : "") +
       (T.fallback ? `<div><b>fallback program</b> — used when tier1_check fails</div><pre>${esc(T.fallback.join("\n"))}</pre>` : "") +
@@ -175,13 +197,13 @@ const pages = {
    vids.map(v => `<div class="card"><b>${esc(v)}</b><br><br><video src="${vid(v)}" controls muted preload="metadata"></video></div>`).join("");
  },
  async runs() {
-  const T = await api("/api/trials?version=17");
-  return `<h2>Runs — v17</h2><p class="sub">Each trial: the program the planner produced, the verifier's verdict, and the diagnosis stored in Atlas.</p>
-   <div class="card"><table><tr><th>mission</th><th>split</th><th>result</th><th>energy Wh</th><th>violations</th><th>actions</th><th>diagnosis</th></tr>
-   ${T.map(t => `<tr><td>${esc(t.mission)}</td><td>${t.split}</td><td class="${t.ok?"ok":"bad"}">${t.ok?"delivered":"failed"}</td><td>${t.energy}</td><td>${t.viol}</td><td><code>${esc(t.actions)}</code></td><td class="muted">${esc(t.diagnosis)}</td></tr>`).join("")}</table></div>`;
+  const T = await api(`/api/trials?body=${BODY}`);
+  return `<h2>Runs — ${BODY}</h2><p class="sub">Each trial: the program the planner produced, the verifier's verdict, and the diagnosis stored in Atlas.</p>
+   <div class="card"><table><tr><th>mission</th><th>set</th><th>split</th><th>result</th><th>energy Wh</th><th>violations</th><th>actions</th><th>diagnosis</th></tr>
+   ${T.map(t => `<tr><td>${esc(t.mission)}</td><td>${esc(t.set)}</td><td>${t.split}</td><td class="${t.ok?"ok":"bad"}">${t.ok?"delivered":"failed"}</td><td>${t.energy}</td><td>${t.viol}</td><td><code>${esc(t.actions)}</code></td><td class="muted">${esc(t.diagnosis)}</td></tr>`).join("")}</table></div>`;
  },
  async evolves() {
-  const L = await api("/api/lineage"), changed = {};
+  const L = await api(`/api/lineage?body=${BODY}`), changed = {};
   L.forEach(h => (Array.isArray(h.diff) ? h.diff : h.diff ? [h.diff] : []).forEach(d => (changed[d.field] ||= []).push(`v${h.version}${h.verdict==="accepted"?"✓":"✗"}`)));
   const F = [["workflow","step graph the engine runs (plan, tier1_check, replan, tier2_sim, verify)"],["rules","plain-language rules the planner must follow"],
    ["constraints","hard limits (payload, altitude); nofly + collision locked to hard"],["tool_specs","per-tool parameter bounds, e.g. fly_to alt range, avoid_nofly"],
@@ -251,6 +273,8 @@ async function go(p) {
   history.replaceState(null, "", "#" + p);
 }
 document.querySelectorAll("nav a").forEach(a => a.onclick = () => go(a.dataset.p));
+api("/api/bodies").then(B => { const sel = $("#bsel"); sel.innerHTML = B.map(b => `<option ${b === BODY ? "selected" : ""}>${b}</option>`).join("");
+  sel.onchange = () => { BODY = sel.value; const p = location.hash.slice(1) || "overview"; history.replaceState(null, "", `?body=${BODY}#${p}`); go(p); }; }).catch(() => {});
 go(location.hash.slice(1) || "overview");
 </script>
 </body>
