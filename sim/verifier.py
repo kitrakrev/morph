@@ -9,14 +9,15 @@ from sim.skills import Sim
 
 
 def score(mission: dict, sim: Sim) -> dict:
-    goal = mission["goal"]["deliver"]
-    item = sim.items[goal["item"]]
-    target = tuple(goal["to"])
-    if sim.world.dims == 3 and len(target) == 3:
-        target_ground = (*target[:2], 0)
-    else:
-        target_ground = target
-    delivered = item.pos is not None and (item.pos == target or sim.world.ground(item.pos) == target_ground)
+    goals = mission["goal"].get("deliveries") or [mission["goal"]["deliver"]]
+
+    def done(goal):
+        item = sim.items[goal["item"]]
+        target = tuple(goal["to"])
+        return item.pos is not None and sim.world.ground(item.pos) == sim.world.ground(target)
+
+    delivered_n = sum(done(g) for g in goals)
+    delivered = delivered_n == len(goals)
 
     kinds = [e["kind"] for e in sim.events]
     constraints = mission["goal"].get("constraints", [])
@@ -37,6 +38,8 @@ def score(mission: dict, sim: Sim) -> dict:
     return {
         "success": success,
         "delivered": delivered,
+        "delivered_n": delivered_n,
+        "deliveries": len(goals),
         "safety_violations": violations,
         "violations_total": total_v,
         "reserve_breach": reserve_breach,

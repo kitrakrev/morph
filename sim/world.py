@@ -68,8 +68,16 @@ def corridor_1d(length: int = 60, seed: int = 0) -> World:
     return World(g, seed, chargers)
 
 
-def city_2d(w: int = 40, h: int = 40, seed: int = 0) -> World:
+DIFFICULTY = {  # rubble share of streets, chargers, river fords, no-fly footprint (3D)
+    "easy": {"rubble": 0.0, "chargers": 6, "fords": 6, "nofly": (0, 0)},
+    "medium": {"rubble": 1 / 12, "chargers": 4, "fords": 3, "nofly": (8, 6)},
+    "hard": {"rubble": 1 / 6, "chargers": 2, "fords": 1, "nofly": (12, 10)},
+}
+
+
+def city_2d(w: int = 40, h: int = 40, seed: int = 0, difficulty: str = "medium") -> World:
     """Streets on a block grid, rubble piles, a river, stairs, a rail line, chargers."""
+    cfg = DIFFICULTY[difficulty]
     rng = np.random.default_rng(seed)
     g = np.full((w, h), T.FLOOR, dtype=np.int8)
     # buildings: blocks between streets every 8 cells
@@ -79,28 +87,29 @@ def city_2d(w: int = 40, h: int = 40, seed: int = 0) -> World:
     # river across the map with a few fords
     ry = int(rng.integers(h // 3, 2 * h // 3))
     g[:, ry] = T.WATER
-    for fx in rng.choice(np.arange(w), size=3, replace=False):
+    for fx in rng.choice(np.arange(w), size=cfg["fords"], replace=False):
         g[fx, ry] = T.FLOOR
     # rail line along one street
     rx = 1
     g[rx, :] = T.RAIL
     # rubble and stairs scattered on streets
     street = np.argwhere(g == T.FLOOR)
-    for idx in rng.choice(len(street), size=len(street) // 12, replace=False):
+    for idx in rng.choice(len(street), size=int(len(street) * cfg["rubble"]), replace=False):
         g[tuple(street[idx])] = T.RUBBLE
     for idx in rng.choice(len(street), size=len(street) // 40, replace=False):
         g[tuple(street[idx])] = T.STAIRS
     chargers = []
-    for idx in rng.choice(len(street), size=4, replace=False):
+    for idx in rng.choice(len(street), size=cfg["chargers"], replace=False):
         p = tuple(int(c) for c in street[idx])
         g[p] = T.CHARGER
         chargers.append(p)
     return World(g, seed, chargers)
 
 
-def city_3d(w: int = 40, h: int = 40, zmax: int = 10, seed: int = 0) -> World:
+def city_3d(w: int = 40, h: int = 40, zmax: int = 10, seed: int = 0, difficulty: str = "medium") -> World:
     """2D city as ground layer, buildings extruded to random heights, a no-fly column."""
-    base = city_2d(w, h, seed)
+    base = city_2d(w, h, seed, difficulty)
+    fw, fh = DIFFICULTY[difficulty]["nofly"]
     rng = np.random.default_rng(seed + 1)
     g = np.full((w, h, zmax), T.AIR, dtype=np.int8)
     g[:, :, 0] = base.grid
@@ -110,17 +119,17 @@ def city_3d(w: int = 40, h: int = 40, zmax: int = 10, seed: int = 0) -> World:
         g[x, y, : heights[x, y]] = T.WALL
     # no-fly zone: a rectangular column (e.g. active fire / helicopter corridor)
     nx, ny = int(rng.integers(w // 4, w // 2)), int(rng.integers(h // 4, h // 2))
-    g[nx:nx + 8, ny:ny + 6, 1:] = np.where(g[nx:nx + 8, ny:ny + 6, 1:] == T.AIR, T.NOFLY,
-                                           g[nx:nx + 8, ny:ny + 6, 1:])
+    box = g[nx:nx + fw, ny:ny + fh, 1:]
+    g[nx:nx + fw, ny:ny + fh, 1:] = np.where(box == T.AIR, T.NOFLY, box)
     chargers = [(*c, 0) for c in base.chargers]
     return World(g, seed, chargers)
 
 
-def make_world(dims: int, size: list[int] | None = None, seed: int = 0) -> World:
+def make_world(dims: int, size: list[int] | None = None, seed: int = 0, difficulty: str = "medium") -> World:
     if dims == 1:
         return corridor_1d(*(size or [60]), seed=seed)
     if dims == 2:
-        return city_2d(*(size or [40, 40]), seed=seed)
+        return city_2d(*(size or [40, 40]), seed=seed, difficulty=difficulty)
     if dims == 3:
-        return city_3d(*(size or [40, 40, 10]), seed=seed)
+        return city_3d(*(size or [40, 40, 10]), seed=seed, difficulty=difficulty)
     raise ValueError(f"dims must be 1, 2 or 3, got {dims}")

@@ -10,18 +10,19 @@ from dataclasses import dataclass
 
 from sim.world import T, World, Pos
 
-MODES = ("wheel", "legs", "flight", "rail")
+MODES = ("wheel", "tracks", "legs", "flight", "rail")
 
 # steps needed to cross one cell, per mode and terrain (None = impassable)
 STEP_COST: dict[str, dict[T, int | None]] = {
     "wheel": {T.FLOOR: 1, T.CHARGER: 1, T.RAIL: 1, T.RUBBLE: None, T.STAIRS: None, T.WATER: None},
+    "tracks": {T.FLOOR: 1, T.CHARGER: 1, T.RAIL: 1, T.RUBBLE: 2, T.STAIRS: None, T.WATER: None},
     "legs": {T.FLOOR: 2, T.CHARGER: 2, T.RAIL: 2, T.RUBBLE: 3, T.STAIRS: 2, T.WATER: None},
     "rail": {T.RAIL: 1, T.CHARGER: 1},
     "flight": {T.AIR: 1, T.FLOOR: 1, T.CHARGER: 1, T.RAIL: 1, T.RUBBLE: 1, T.STAIRS: 1, T.WATER: 1},
 }
 
 # Wh drained per cell moved at zero payload
-BASE_WH: dict[str, float] = {"wheel": 0.15, "legs": 0.35, "rail": 0.05, "flight": 0.5}
+BASE_WH: dict[str, float] = {"wheel": 0.15, "tracks": 0.25, "legs": 0.35, "rail": 0.05, "flight": 0.5}
 HOVER_WH = 0.08          # flight: per step spent airborne regardless of motion
 CLIMB_WH = 0.6           # flight: per +1 altitude
 CHARGE_WH_PER_STEP = 6.0
@@ -46,6 +47,8 @@ class Body:
             kind, modes = ("quadruped" if loco["legs"] == 4 else "hexapod"), ("legs",)
         elif loco.get("rail"):
             kind, modes = "railcart", ("rail",)
+        elif "tracks" in loco:
+            kind, modes = "tracked", ("tracks",)
         elif "wheels" in loco:
             kind, modes = "rover", ("wheel",)
         else:

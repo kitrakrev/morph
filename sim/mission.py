@@ -8,7 +8,7 @@ from sim.world import make_world
 
 def build_sim(mission: dict) -> Sim:
     t = mission["terrain"]
-    world = make_world(t["dims"], t.get("size"), t.get("seed", 0))
+    world = make_world(t["dims"], t.get("size"), t.get("seed", 0), t.get("difficulty", "medium"))
     robots = {}
     for r in mission["robots"]:
         body = Body.from_structure(r["structure"])
