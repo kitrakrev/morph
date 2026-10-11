@@ -136,7 +136,7 @@ const pages = {
    ${A(`M${X(0)},${y2 + H / 2} L10,${y2 + H / 2} L10,${y1 + H / 2} L${X(0)},${y1 + H / 2}`, "arg")}
    <text x="14" y="${(y1 + y2) / 2 + 60}" class="lbl" transform="rotate(-90 14 ${(y1 + y2) / 2 + 60})">promoted → new harness vN</text>
    ${A(`M${X(1) + W / 2},${y2 + H} L${X(1) + W / 2},${yN}`, "arr", "reject → logged, agent sees it", X(1) + W / 2 + 8, y2 + H + 22)}
-   ${B(X(1), yN, "", "Rejected", ["e.g. v14: 30 no-fly violations", "v19: tried to disable no-fly"], W + W / 2, 70)}
+   ${B(X(1), yN, "", "Rejected", ["e.g. v14: 30 no-fly violations", "v19: min altitude 2 → more violations"], W + W / 2, 70)}
    ${B(X(3), yN, "fixed", "Held-out scoring  🔒", ["after acceptance only · never used for selection", "drone: v1 0/12 → v17 12/12 (n=12), 0 violations"], R - X(3), 70)}
   </svg>`;
   const legend = [["fixed","fixed code 🔒"],["evo","evolvable harness data"],["gate","gate 🔒"],["atlas","MongoDB Atlas"],["rd","Raindrop"]]
@@ -164,12 +164,13 @@ const pages = {
   const cur = rows.filter(r => r.era === "current"), old = rows.filter(r => r.era !== "current");
   const nRej = rows.filter(r => r.verdict === "rejected").length, nAcc = rows.filter(r => r.verdict === "accepted").length;
   return `<h2>Results — ${BODY}</h2><p class="sub">Latest run per mission. Every score shows k/n. Held-out is scored after acceptance and never used for selection.</p>
-   <div class="card"><b>Why so many rejections?</b> ${nAcc} accepted, ${nRej} rejected. That ratio is the point: the evolution agent may propose anything legal, and the gate keeps only edits that deliver more missions with no new violations and no regression. Most rejected edits only nudged the harness's energy beliefs, which changed nothing on the missions (Δtrain = 0), or traded deliveries for violations (v14: planner read past episodes and flew through the no-fly zone 30 times; v19: tried to switch off no-fly avoidance). A rejection costs one evaluation; a bad promotion would cost real missions.</div>
+   <div class="card"><b>Why so many rejections?</b> ${nAcc} accepted, ${nRej} rejected. That ratio is the point: the evolution agent may propose anything legal, and the gate keeps only edits that deliver more missions with no new violations and no regression. Most rejected edits only nudged the harness's energy beliefs, which changed nothing on the missions (Δtrain = 0), or traded deliveries for violations (v14: planner read past episodes and flew through the no-fly zone 30 times; v19: raised the minimum altitude and added violations). A rejection costs one evaluation; a bad promotion would cost real missions.</div>
    <div class="card"><b>Current run</b> (planner Claude Haiku, evolution Claude Sonnet, physics v2)<table>${head}${cur.map(tr).join("")}</table></div>
    ${old.length ? `<div class="card"><b>Earlier run</b> (free Nemotron planner, physics v1) — kept for comparison; scores here are not comparable with the current run<table>${head}${old.map(tr).join("")}</table></div>` : ""}`;
  },
  async lineage() {
-  const L = await api(`/api/lineage?body=${BODY}`);
+  const only = (new URLSearchParams(location.search).get("v") || "").split(",").filter(Boolean).map(Number);
+  const L = (await api(`/api/lineage?body=${BODY}`)).filter(h => !only.length || only.includes(h.version));
   return `<h2>Lineage &amp; edits</h2><p class="sub">Every candidate the evolution agent proposed, its diff, the gate's checks, and the failures it retrieved from Atlas ($rankFusion).</p>` +
    L.map(h => `<div class="card"><b>v${h.version}</b> ← v${h.parent ?? "—"} &nbsp; ${h.verdict === "accepted" ? '<span class="pill acc">accepted</span>' : h.verdict === "rejected" ? '<span class="pill rej">rejected</span>' : `<span class="pill">${esc(h.verdict)}</span>`}
     <span class="muted">${esc(h.model || "")}</span>

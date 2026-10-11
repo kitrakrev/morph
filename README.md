@@ -94,7 +94,7 @@ fixed no-fly routing, not fixed-wing-specific behaviour; the planner already cru
 
 - **Hard tier** (long-range loaded drone missions where a direct flight fails and only charge-after-pickup
   works): v17, never evolved on these, scores train 5/6 (n=6) and held-out **4/6** (n=6). Three further edits
-  were all rejected by the gate for adding violations — including one that turned off no-fly avoidance (v19).
+  were all rejected by the gate: each delivered less and added safety violations (e.g. v19 raised the minimum altitude).
 - **Transfer:** quadruped and held-out hexapod score **12/12 held-out (n=12) from bootstrap** on medium
   single-delivery missions: generations to adapt = 0 for ground bodies vs 1 accepted edit for the drone.
   Cold vs warm (taxonomic) transfer is implemented (`engine/transfer.py`) but **not measured**: there was no
@@ -139,8 +139,8 @@ without retraining, and never promotes a change that adds safety violations **on
 - **Failure memory is text-only.** Failures are embedded from their text summaries (voyage-4-lite). Next step:
   multimodal embeddings of replay frames with voyage-multimodal-3.5, so the harness can match failures by what
   the trajectory looked like.
-- **Locked safety switches.** v19 tried to turn off no-fly avoidance; the gate rejected it on safety, and the
-  legality check now blocks that edit before any run.
+- **Locked safety switches.** The legality check blocks any edit that turns no-fly avoidance off once it is on
+  (a guard added today; no run attempted it).
 
 ### How the harness may expand (tiered by risk)
 
