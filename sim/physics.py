@@ -42,9 +42,13 @@ class Body:
     battery_wh: float
     payload_max_kg: float
     sensor_range: int
+    model: str = ""  # real robot this body is modelled on (render only), e.g. "unitree_go2"
 
     @staticmethod
     def from_structure(s: dict) -> "Body":
+        if s.get("model_file") and not s.get("locomotion"):
+            from sim.robot_import import resolve  # robot supplied as a MuJoCo model file
+            s = resolve(s)
         loco = s.get("locomotion", {})
         if "fixed_wing" in loco:
             kind, modes = "fixed_wing_vtol", ("fixed_wing",)
@@ -53,7 +57,7 @@ class Body:
         elif "rotors" in loco:
             kind, modes = "drone", ("flight",)
         elif "legs" in loco:
-            kind, modes = ("quadruped" if loco["legs"] == 4 else "hexapod"), ("legs",)
+            kind, modes = {2: "humanoid", 4: "quadruped"}.get(loco["legs"], "hexapod"), ("legs",)
         elif loco.get("rail"):
             kind, modes = "railcart", ("rail",)
         elif "tracks" in loco:
@@ -65,7 +69,7 @@ class Body:
         lidar = [x for x in s.get("sensors", []) if str(x).startswith("lidar_")]
         rng = int(lidar[0].split("_")[1].rstrip("m")) if lidar else 5
         return Body(kind, modes, float(s.get("mass_kg", 10)), float(s.get("battery_wh", 100)),
-                    float(s.get("payload_bay_kg", 5)), rng)
+                    float(s.get("payload_bay_kg", 5)), rng, str(s.get("model", "")))
 
 
 def payload_factor(body: Body, mode: str, payload_kg: float) -> float:

@@ -41,6 +41,15 @@ YAW_K = 0.0201          # rotor drag-torque / thrust ratio
 MAX_THRUST_RATIO = 2.5  # per-rotor max thrust, as multiple of hover share
 MAX_TILT_ACC = 0.7 * G  # horizontal accel cap (~35 deg tilt)
 GUST_N_PER_Z = 0.015    # gust std-dev per altitude level, as fraction of weight
+REC_EVERY = 20          # log a pose every 20 physics steps (25 fps of sim time)
+
+
+def _grid_pos(sim: Sim, p: Pos) -> np.ndarray:
+    """Cell centre in metres for any world dimension (ground bodies sit at z=0)."""
+    x = p[0] + 0.5
+    y = p[1] + 0.5 if len(p) > 1 else 0.5
+    z = cell_center(p)[2] if len(p) == 3 and p[2] > 0 else 0.0
+    return np.array([x, y, z])
 
 
 def cell_center(p: Pos) -> np.ndarray:
@@ -92,8 +101,24 @@ def world_xml(sim: Sim, mass_kg: float) -> str:
 </mujoco>"""
 
 
+def _noop(_engine):
+    pass
+
+
+def _yaw_quat(yaw: float, pitch: float = 0.0, roll: float = 0.0) -> np.ndarray:
+    q = np.zeros(4)
+    mujoco.mju_euler2Quat(q, np.array([roll, pitch, yaw]), "xyz")
+    return q
+
+
 class Quad:
     """One robot's MuJoCo world plus its controller and energy meter."""
+
+    on_step = staticmethod(_noop)
+
+    def pose(self) -> tuple[np.ndarray, np.ndarray, float]:
+        """World position, orientation quaternion, mean rotor thrust ratio (for rendering)."""
+        return self.data.qpos[:3].copy(), self.data.qpos[3:7].copy(), float(self.data.ctrl.mean() / (self.base_mass * G / 4))
 
     def __init__(self, sim: Sim, r: Robot, seed: int):
         self.base_mass = r.body.mass_kg
@@ -179,6 +204,7 @@ class Quad:
             self.data.ctrl[:] = u
             self.data.xfrc_applied[self.bid, :3] = gust
             mujoco.mj_step(self.model, self.data)
+            self.on_step(self)
             joules += self.k_power * float(np.sum(u ** 1.5)) * DT
             for c in self.data.contact[: self.data.ncon]:
                 if self.hull in (c.geom1, c.geom2) and min(c.geom1, c.geom2) > 0:  # geom 0 is the ground
@@ -238,8 +264,28 @@ class Mover:
         floor_cells = physics.STEP_COST.get(mode, {}).get(T.FLOOR, 1)
         self.hotel_w = max(physics.BASE_WH[mode] * 3600 - self._calibrate(floor_cells), 0.0) / (self.cell_s * floor_cells)
 
+    on_step = staticmethod(_noop)
+
     def set_payload(self, kg: float):
         self.model.body_mass[self.bid] = self.base_mass + kg
+
+    def pose(self) -> tuple[np.ndarray, np.ndarray, float]:
+        """World position, heading quaternion (+ pitch/bank for fixed-wing), speed (for rendering)."""
+        p, v = np.zeros(3), np.zeros(3)
+        p[: self.axes], v[: self.axes] = self.data.qpos, self.data.qvel
+        if self.axes < 3:
+            p[2] = 0.0
+        speed = float(np.linalg.norm(v[:2]))
+        if speed > 0.05:
+            self.heading = math.atan2(v[1], v[0])
+        yaw = getattr(self, "heading", 0.0)
+        pitch = roll = 0.0
+        if self.mode == "fixed_wing" and speed > 0.5:
+            pitch = -math.atan2(v[2], speed)
+            prev = getattr(self, "_prev_yaw", yaw)
+            roll = float(np.clip(-(yaw - prev + math.pi) % (2 * math.pi) + math.pi, -0.02, 0.02)) * 30
+            self._prev_yaw = yaw
+        return p, _yaw_quat(yaw, pitch, roll), speed
 
     def _center(self, p: Pos) -> np.ndarray:
         c = np.array([p[0] + 0.5] + ([p[1] + 0.5] if len(p) > 1 else []) + ([p[2] + 0.5] if len(p) > 2 else []))
@@ -283,6 +329,7 @@ class Mover:
             self.data.qfrc_applied[:] = ext
             self.data.ctrl[:] = f
             mujoco.mj_step(self.model, self.data)
+            self.on_step(self)
             joules += max(float(f @ v), 0.0) / DRIVE_ETA * DT
             if self.mode == "fixed_wing":  # VTOL lift rotors carry whatever the wing does not
                 unsupported = max(m * G - ext[2], 0.0)
@@ -322,17 +369,61 @@ class MujocoSim(Sim):
         finally:
             self.__dict__["quads"] = quads
 
+    # ---- recording (for sim.render3d) -------------------------------------------
+    @property
+    def trace(self) -> list[dict]:
+        """Real-time pose log: one entry per REC_DT seconds of simulated MuJoCo time."""
+        return self.__dict__.setdefault("trace_", [])
+
+    def _clock(self) -> float:
+        return self.__dict__.get("clock", 0.0)
+
+    def _hook(self, r: Robot, mode: str):
+        def on_step(eng):
+            self.__dict__["clock"] = self._clock() + DT
+            self.__dict__["tick"] = self.__dict__.get("tick", 0) + 1
+            if self.__dict__["tick"] % REC_EVERY == 0:
+                self._record(r, mode, *eng.pose())
+        return on_step
+
+    def _record(self, r: Robot, mode: str, p, q, act: float, label: str = ""):
+        self.trace.append({"t": round(self._clock(), 3), "robot": r.id, "kind": r.body.kind, "mode": mode,
+                           "pos": [round(float(x), 3) for x in p], "quat": [round(float(x), 4) for x in q],
+                           "act": round(act, 3), "battery": round(r.battery / r.body.battery_wh, 3),
+                           "carrying": list(r.carrying), "label": label})
+
+    def _hold(self, rid: str, seconds: float, label: str):
+        """Log a pause (pick / drop / charge) at the robot's last recorded pose."""
+        r = self.robots[rid]
+        last = next((f for f in reversed(self.trace) if f["robot"] == rid), None)
+        p = last["pos"] if last else list(_grid_pos(self, r.pos))
+        q = last["quat"] if last else [1, 0, 0, 0]
+        mode = last["mode"] if last else r.body.modes[0]
+        for _ in range(int(seconds / (REC_EVERY * DT))):
+            self.__dict__["clock"] = self._clock() + REC_EVERY * DT
+            self._record(r, mode, p, q, 0.0, label)
+
+    def run_call(self, call: dict) -> dict:
+        res = super().run_call(call)
+        skill, rid = call.get("skill"), call.get("robot")
+        if rid in self.robots and skill in ("pick", "drop", "charge", "handoff", "scan"):
+            label = f"{skill} {call.get('args', {}).get('item', '')}".strip() + ("" if res.get("ok") else " (failed)")
+            self._hold(rid, 1.6 if skill == "charge" else 0.8, label)
+        return res
+
     def mover(self, r: Robot, mode: str) -> Mover:
         key = f"{r.id}:{mode}"
         m = self._quads.get(key)
         if m is None:
             m = self._quads[key] = Mover(self, r, mode)
+            m.on_step = self._hook(r, mode)
         return m
 
     def quad(self, r: Robot) -> Quad:
         q = self._quads.get(r.id)
         if q is None:
             q = self._quads[r.id] = Quad(self, r, self.world.seed * 1000 + len(self._quads))
+            q.on_step = self._hook(r, "flight")
         return q
 
     def _with_route(self, skill: str, rid: str, *args) -> dict:

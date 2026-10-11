@@ -140,3 +140,74 @@ def make_world(dims: int, size: list[int] | None = None, seed: int = 0, difficul
     if dims == 3:
         return city_3d(*(size or [40, 40, 10]), seed=seed, difficulty=difficulty)
     raise ValueError(f"dims must be 1, 2 or 3, got {dims}")
+
+
+# ---- user-supplied maps -----------------------------------------------------
+LEGEND = {".": T.FLOOR, " ": T.FLOOR, "#": T.WALL, "r": T.RUBBLE, "s": T.STAIRS, "~": T.WATER,
+          "=": T.RAIL, "C": T.CHARGER}
+
+
+def _read_map(t: dict) -> list[str]:
+    if "map" in t:
+        return [str(r) for r in t["map"]]
+    path = t["map_file"]
+    if path.endswith(".json"):
+        import json
+        with open(path) as f:
+            spec = json.load(f)
+        t.update({k: v for k, v in spec.items() if k != "map"})
+        return spec["map"]
+    if path.endswith((".png", ".jpg", ".jpeg")):  # height map: 0 = street, brighter = taller building
+        from PIL import Image
+        img = np.asarray(Image.open(path).convert("L"), dtype=float)
+        zmax = int(t.get("zmax", 10))
+        levels = np.round(img / 255 * (zmax - 2)).astype(int)
+        return ["".join(str(min(9, v)) if v > 0 else "." for v in row) for row in levels]
+    with open(path) as f:
+        return [line.rstrip("\n") for line in f if line.strip()]
+
+
+def world_from_map(t: dict) -> World:
+    """World from a user map. `map` is a list of rows (row = y, column = x) using LEGEND;
+    digits 1-9 are buildings of that height (3D) or walls (2D). 3D when `zmax` is given or the
+    map has digits; `nofly` lists boxes [x0, y0, x1, y1] (optionally + [z0, z1]). One row and
+    `dims: 1` gives a corridor."""
+    rows = _read_map(t)
+    w, h = max(len(r) for r in rows), len(rows)
+    has_digits = any(c.isdigit() for r in rows for c in r)
+    dims = int(t.get("dims") or (3 if t.get("zmax") or has_digits else (1 if h == 1 else 2)))
+    ground = np.full((w, h), T.FLOOR, dtype=np.int8)
+    heights = np.zeros((w, h), dtype=int)
+    chargers = []
+    for y, row in enumerate(rows):
+        for x, c in enumerate(row):
+            if c.isdigit() and c != "0":
+                ground[x, y], heights[x, y] = T.WALL, int(c)
+            else:
+                ground[x, y] = LEGEND.get(c, T.FLOOR)
+                if c == "#":
+                    heights[x, y] = int(t.get("wall_height", 4))
+                if c == "C":
+                    chargers.append((x, y))
+    seed = int(t.get("seed", 0))
+    if dims == 1:
+        return World(ground[:, 0].copy(), seed, [(c[0],) for c in chargers])
+    if dims == 2:
+        return World(ground, seed, chargers)
+    zmax = int(t.get("zmax", max(10, heights.max() + 3)))
+    g = np.full((w, h, zmax), T.AIR, dtype=np.int8)
+    g[:, :, 0] = ground
+    for x, y in np.argwhere(heights > 0):
+        g[x, y, :min(heights[x, y], zmax - 1)] = T.WALL
+    for box in t.get("nofly", []):
+        x0, y0, x1, y1, *z = box
+        z0, z1 = z if z else (1, NOFLY_CEIL)
+        blk = g[x0:x1, y0:y1, z0:z1]
+        g[x0:x1, y0:y1, z0:z1] = np.where(blk == T.AIR, T.NOFLY, blk)
+    return World(g, seed, [(*c, 0) for c in chargers])
+
+
+def world_from_spec(t: dict) -> World:
+    if "map" in t or "map_file" in t:
+        return world_from_map(dict(t))
+    return make_world(t["dims"], t.get("size"), t.get("seed", 0), t.get("difficulty", "medium"))

@@ -5,19 +5,18 @@ from events emitted by the true physics, not from anything the planner claims.
 """
 from __future__ import annotations
 
+from sim.goals import check, tasks
 from sim.skills import Sim
 
 
 def score(mission: dict, sim: Sim) -> dict:
-    goals = mission["goal"].get("deliveries") or [mission["goal"]["deliver"]]
-
-    def done(goal):
-        item = sim.items[goal["item"]]
-        target = tuple(goal["to"])
-        return item.pos is not None and sim.world.ground(item.pos) == sim.world.ground(target)
-
-    delivered_n = sum(done(g) for g in goals)
-    delivered = delivered_n == len(goals)
+    all_tasks = tasks(mission["goal"])
+    done = [check(sim, t) for t in all_tasks]
+    deliver = [d for d, t in zip(done, all_tasks) if t["type"] == "deliver"]
+    delivered_n = sum(deliver)
+    goals = deliver
+    goal_met = all(done)
+    delivered = goal_met  # "delivered" = every task met (kept for older readers)
 
     kinds = [e["kind"] for e in sim.events]
     constraints = mission["goal"].get("constraints", [])
@@ -34,12 +33,15 @@ def score(mission: dict, sim: Sim) -> dict:
     deadline = mission["goal"].get("deadline_steps", 10**9)
     energy = sum(r.drained_wh for r in sim.robots.values())  # total drawn, incl. before recharges
     total_v = sum(violations.values())
-    success = delivered and total_v == 0 and sim.t <= deadline and not reserve_breach
+    success = goal_met and total_v == 0 and sim.t <= deadline and not reserve_breach
     return {
         "success": success,
         "delivered": delivered,
         "delivered_n": delivered_n,
         "deliveries": len(goals),
+        "tasks_done": sum(done),
+        "tasks": len(all_tasks),
+        "task_status": [{"type": t["type"], "done": d} for t, d in zip(all_tasks, done)],
         "safety_violations": violations,
         "violations_total": total_v,
         "reserve_breach": reserve_breach,

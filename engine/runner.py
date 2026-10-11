@@ -33,7 +33,9 @@ def _diagnose(score: dict, t1: dict | None, sim) -> str:
         parts.append(f"missed deadline ({score['time']} steps)")
     if not score["delivered"] and not parts:
         errs = [e["reason"] for e in sim.events if e["kind"] == "skill_error"]
-        parts.append("not delivered: " + "; ".join(errs[:2]) if errs else "not delivered")
+        missed = [t["type"] for t in score.get("task_status", []) if not t["done"]]
+        what = "not delivered" if missed in ([], ["deliver"]) else "tasks not met: " + ", ".join(missed)
+        parts.append(f"{what}: " + "; ".join(errs[:2]) if errs else what)
     if t1 and not t1["pass"]:
         parts.append("tier1: " + "; ".join(t1["reasons"][:2]))
     moved = max(1, sum(1 for a, b in zip(sim.frames, sim.frames[1:])
@@ -85,12 +87,21 @@ def run_mission(h: dict, template: dict, mission: dict, run_id: str | None = Non
                              "energy": score["energy_wh"]})
     if mission["split"] != "heldout":  # held-out outcomes never reach agent-readable memory
         if not score["success"]:
-            db().failures.insert_one({"body": h["body_type"], "version": h["version"], "mission_id": mission["id"],
-                                      "summary": f"{h['body_type']} v{h['version']}: {diagnosis}", "ts": time.time()})
+            doc = {"body": h["body_type"], "version": h["version"], "mission_id": mission["id"],
+                   "summary": f"{h['body_type']} v{h['version']}: {diagnosis}", "ts": time.time()}
+            from engine import multimodal
+            if multimodal.enabled():  # picture of the failure + diagnosis -> one multimodal vector
+                try:
+                    png = multimodal.failure_image(sim)
+                    doc["mm_embedding"] = multimodal.embed(doc["summary"], png)
+                    doc["map_png"] = multimodal.thumbnail_b64(png)
+                except Exception as e:
+                    print(f"    multimodal embedding skipped ({str(e)[:60]})")
+            db().failures.insert_one(doc)
         Memory(h["body_type"]).save_episode(
             title=f"{mission['id']} v{h['version']}",
             content=f"{'SUCCESS' if score['success'] else 'FAIL'} {h['body_type']} carrying "
-                    f"{mission['goal']['deliver']['weight_kg']}kg: {diagnosis or 'delivered safely'}",
+                    f"{(mission['goal'].get('deliver') or {}).get('weight_kg', 0)}kg: {diagnosis or 'goal met safely'}",
             version=h["version"], mission_id=mission["id"])
     telemetry.trial_event(trial, model=template.get("model"))
     db().checkpoints.delete_one({"run_id": run_id})
@@ -102,7 +113,7 @@ def evaluate(h: dict, missions: list[dict]) -> dict:
     body = build_sim(missions[0]).robots[missions[0]["robots"][0]["id"]].body
     template = plan_template(h, {"kind": body.kind, "modes": list(body.modes), "mass_kg": body.mass_kg,
                                  "battery_wh": body.battery_wh, "payload_max_kg": body.payload_max_kg},
-                             build_sim(missions[0]).world.summary())
+                             build_sim(missions[0]).world.summary(), missions[0]["goal"])
     trials = [run_mission(h, template, m) for m in missions]
     n = len(trials)
     return {"template": template, "trials": trials, "n": n,

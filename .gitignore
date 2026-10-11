@@ -8,3 +8,6 @@ key.sh
 !docs/out/
 !docs/out/*.mp4
 .claude/
+sim/assets/menagerie/
+out/
+MUJOCO_LOG.TXT

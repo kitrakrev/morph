@@ -230,6 +230,7 @@ class Sim:
         k = r.body.sensor_range
         sl = tuple(slice(max(0, c - k), c + k + 1) for c in r.pos)
         patch = self.world.grid[sl]
+        self.emit("scan", rid, pos=list(r.pos))
         self.t += 1
         return {"ok": True, "obstacles": int((patch == T.WALL).sum()), "nofly": int((patch == T.NOFLY).sum())}
 

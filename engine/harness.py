@@ -25,6 +25,8 @@ def bootstrap(structure: dict) -> dict:
     """Initial harness derived from structure only: plausible but naive beliefs.
 
     Refuses bodies outside the known movement vocabulary instead of guessing."""
+    from sim.robot_import import resolve
+    structure = resolve(structure)  # a robot may be supplied as a MuJoCo model file
     loco = set(structure.get("locomotion", {}))
     unknown = loco - set(SUPPORTED_LOCOMOTION)
     if not loco or unknown:

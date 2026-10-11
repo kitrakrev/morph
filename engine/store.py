@@ -60,6 +60,9 @@ def ensure_schema() -> dict:
     _search_index(d.failures, "failures_vec",
                   {"fields": [{"type": "autoEmbed", "modality": "text", "path": "summary", "model": "voyage-4-lite"},
                               {"type": "filter", "path": "body"}]}, "vectorSearch")
+    _search_index(d.failures, "failures_mm",  # multimodal: failure map picture + diagnosis (engine/multimodal.py)
+                  {"fields": [{"type": "vector", "path": "mm_embedding", "numDimensions": 1024, "similarity": "cosine"},
+                              {"type": "filter", "path": "body"}]}, "vectorSearch")
     _search_index(d.failures, "failures_text", {"mappings": {"dynamic": False, "fields": {
         "summary": {"type": "string"}, "body": {"type": "token"}}}})
     for kind, path in (("episodic", "content"), ("procedural", "content"), ("semantic", "text"),

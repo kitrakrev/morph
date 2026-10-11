@@ -19,9 +19,9 @@ BODIES = {
               "sensors": ["camera"], "size_m": [0.8, 0.6, 0.5]},
     "tracked": {"locomotion": {"tracks": 2}, "mass_kg": 45, "battery_wh": 260, "payload_bay_kg": 15,
                 "sensors": ["camera", "lidar_10m"], "size_m": [1.0, 0.7, 0.6]},
-    "drone": {"locomotion": {"rotors": 4}, "mass_kg": 2.5, "battery_wh": 60, "payload_bay_kg": 1.0,
+    "drone": {"locomotion": {"rotors": 4}, "model": "skydio_x2", "mass_kg": 2.5, "battery_wh": 60, "payload_bay_kg": 1.0,
               "sensors": ["camera", "lidar_20m"], "size_m": [0.6, 0.6, 0.3]},
-    "quadruped": {"locomotion": {"legs": 4}, "mass_kg": 25, "battery_wh": 150, "payload_bay_kg": 6,
+    "quadruped": {"locomotion": {"legs": 4}, "model": "unitree_go2", "mass_kg": 25, "battery_wh": 150, "payload_bay_kg": 6,
                   "sensors": ["camera", "lidar_10m"], "size_m": [0.9, 0.4, 0.6]},
     "railcart": {"locomotion": {"rail": True}, "mass_kg": 80, "battery_wh": 300, "payload_bay_kg": 40,
                  "sensors": ["camera"], "size_m": [1.5, 0.8, 0.6]},
@@ -29,11 +29,21 @@ BODIES = {
                "sensors": ["camera", "lidar_20m"], "size_m": [0.7, 0.6, 0.35]},
     "fixed_wing_vtol": {"locomotion": {"fixed_wing": 1}, "mass_kg": 5.0, "battery_wh": 90, "payload_bay_kg": 1.5,
                         "sensors": ["camera", "lidar_20m"], "size_m": [1.6, 1.1, 0.3]},
+    # real robots (MuJoCo Menagerie models for rendering; specs from vendor datasheets, rounded)
+    "spot": {"locomotion": {"legs": 4}, "model": "boston_dynamics_spot", "mass_kg": 32.7, "battery_wh": 564,
+             "payload_bay_kg": 14, "sensors": ["camera", "lidar_10m"], "size_m": [1.1, 0.5, 0.6]},
+    "anymal": {"locomotion": {"legs": 4}, "model": "anybotics_anymal_c", "mass_kg": 50, "battery_wh": 932,
+               "payload_bay_kg": 10, "sensors": ["camera", "lidar_20m"], "size_m": [0.93, 0.53, 0.89]},
+    "humanoid": {"locomotion": {"legs": 2}, "model": "unitree_g1", "mass_kg": 35, "battery_wh": 432,
+                 "payload_bay_kg": 3, "sensors": ["camera", "lidar_10m"], "size_m": [0.45, 0.2, 1.32]},
+    "humanoid_h1": {"locomotion": {"legs": 2}, "model": "unitree_h1", "mass_kg": 47, "battery_wh": 864,
+                    "payload_bay_kg": 5, "sensors": ["camera", "lidar_10m"], "size_m": [0.5, 0.25, 1.8]},
     "hexapod": {"locomotion": {"legs": 6}, "mass_kg": 18, "battery_wh": 120, "payload_bay_kg": 4,
                 "sensors": ["camera", "lidar_10m"], "size_m": [0.8, 0.6, 0.4]},
 }
 HELDOUT_BODIES = ("hexapod",)
 MODE = {"fixed_wing_vtol": "flight", "hybrid": "flight", "rover": "wheel", "tracked": "tracks", "quadruped": "legs", "hexapod": "legs", "railcart": "rail",
+        "spot": "legs", "anymal": "legs", "humanoid": "legs", "humanoid_h1": "legs",
         "drone": "flight"}
 DEFAULT_DIMS = {"drone": 3, "hybrid": 3, "fixed_wing_vtol": 3, "railcart": 1}
 DIFFICULTIES = ("easy", "medium", "hard")
@@ -140,9 +150,11 @@ def _needs_recharge(m: dict) -> bool:
 
 def mission_set(body_kind: str, split: str, n: int, difficulty: str = "medium", mtype: str = "single",
                 dims: int | None = None) -> list[dict]:
+    from sim import spec
     out = []
     for seed in SEED_RANGES[split]:
-        m = make_mission(body_kind, seed, split, dims, difficulty, mtype)
+        m = spec.make(body_kind, seed, split) if body_kind in spec.SPECS else \
+            make_mission(body_kind, seed, split, dims, difficulty, mtype)
         if m:
             out.append(m)
         if len(out) == n:

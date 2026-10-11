@@ -1,0 +1,15 @@
+{
+  "name": "x2-city-survey",
+  "robot": {"model_file": "sim/assets/menagerie/skydio_x2/x2.xml", "battery_wh": 60, "payload_bay_kg": 0.5,
+            "sensors": ["camera", "lidar_3m"]},
+  "terrain": {"map": ["C...........",
+                      "..33....55..",
+                      "..33....55..",
+                      "............",
+                      "....44......",
+                      "....44....C.",
+                      "............"], "nofly": [[8, 4, 12, 7]]},
+  "start": [0, 0, 0],
+  "goal": {"tasks": [{"type": "survey", "area": [0, 0, 8, 4], "coverage": 0.9}, {"type": "return_home"}],
+           "constraints": ["no_nofly", "battery_reserve"], "reserve_frac": 0.2, "deadline_steps": 600}
+}

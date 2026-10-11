@@ -1,0 +1,9 @@
+{
+  "name": "go2-plant-inspection",
+  "robot": {"model_file": "sim/assets/menagerie/unitree_go2/go2.xml", "battery_wh": 230, "payload_bay_kg": 7},
+  "terrain": {"map_file": "specs/maps/plant.txt"},
+  "start": "random",
+  "goal": {"tasks": [{"type": "inspect", "pos": "random"}, {"type": "inspect", "pos": "random"},
+                     {"type": "return_home"}],
+           "constraints": ["battery_reserve"], "reserve_frac": 0.2, "deadline_steps": 400}
+}

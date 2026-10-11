@@ -1,0 +1,9 @@
+{
+  "name": "g1-warehouse-delivery",
+  "robot": {"model_file": "sim/assets/menagerie/unitree_g1/g1.xml", "battery_wh": 432, "payload_bay_kg": 3},
+  "terrain": {"dims": 2, "difficulty": "hard"},
+  "start": "random",
+  "items": [{"id": "medkit", "weight_kg": 2.0, "pos": "random"}],
+  "goal": {"tasks": [{"type": "deliver", "item": "medkit", "to": "random"}, {"type": "return_home"}],
+           "constraints": ["battery_reserve"], "reserve_frac": 0.2, "deadline_steps": 600}
+}

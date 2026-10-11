@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 
+from sim.goals import describe, survey_points, tasks
 from sim.mission import build_sim
 from engine import llm
 from engine.memory import Memory
@@ -40,13 +41,22 @@ def context(h: dict, body_kind: str) -> dict:
     return ctx
 
 
-def plan_template(h: dict, body: dict, terrain_summary: dict | None = None) -> dict:
+GOAL_SYMBOLS = {"$TARGETS": "ordered list of task points (visit / inspect / patrol)", "$TARGET": "current point inside foreach",
+                "$HOME": "robot start position"}
+FOREACH = ('For a list of points write {"foreach": "$TARGETS", "do": [steps using $TARGET]}; '
+           "the compiler expands it once per point.")
+
+
+def plan_template(h: dict, body: dict, terrain_summary: dict | None = None, goal: dict | None = None) -> dict:
     harness_view = {k: h.get(k) for k in ("rules", "constraints", "tool_specs", "skills")}
     reports = {}
     if "terrain_summary" in h.get("reports_read", []) and terrain_summary:
         reports["terrain_summary"] = terrain_summary
-    user = json.dumps({"body": body, "harness": harness_view, "reports": reports,
-                       "memory": context(h, body.get("kind", "?")), "symbols": SYMBOLS})
+    payload = {"body": body, "harness": harness_view, "reports": reports,
+               "memory": context(h, body.get("kind", "?")), "symbols": SYMBOLS}
+    if goal and any(t["type"] != "deliver" for t in tasks(goal)):  # delivery-only prompts stay byte-identical
+        payload["goal"] = {"tasks": describe(goal), "symbols": GOAL_SYMBOLS, "foreach": FOREACH}
+    user = json.dumps(payload)
     # planner model is FIXED for the whole day (Claude Haiku via Claude Code headless); no fallback
     out = llm.claude_json(SYSTEM, user, model=PLANNER_MODEL)
     tpl = out["json"]
@@ -71,13 +81,28 @@ def compile_program(template: list[dict], mission: dict, h: dict) -> list[dict]:
     """Fill symbols for one mission and clamp args to the harness tool_specs."""
     sim = build_sim(mission)
     r = mission["robots"][0]
-    it = mission["items"][0]
-    dest = mission["goal"]["deliver"]["to"]
+    ts = tasks(mission["goal"])
+    deliver = next((t for t in ts if t["type"] == "deliver"), None)
+    targets = [p for t in ts if t["type"] in ("visit", "inspect") for p in [t["pos"]]] + \
+              [p for t in ts if t["type"] == "patrol" for _ in range(int(t.get("laps", 1))) for p in t["points"]] + \
+              [p for t in ts if t["type"] == "survey"
+               for p in survey_points(t["area"], sim.robots[r["id"]].body.sensor_range, sim.world)]
+    it = next((i for i in mission.get("items", []) if deliver and i["id"] == deliver["item"]), None) \
+        or (mission["items"][0] if mission.get("items") else {"id": None, "pos": r["position"]})
+    dest = deliver["to"] if deliver else (targets[-1] if targets else r["position"])
     route = lambda c: sum(abs(a - b) for a, b in zip(c, it["pos"])) + sum(abs(a - b) for a, b in zip(c, dest))
     charger = list(min(sim.world.chargers, key=route)) if sim.world.chargers else it["pos"]
-    env = {"$ROBOT": r["id"], "$ITEM": it["id"], "$ITEM_POS": it["pos"], "$DEST": dest, "$CHARGER": charger}
+    env = {"$ROBOT": r["id"], "$ITEM": it["id"], "$ITEM_POS": it["pos"], "$DEST": dest, "$CHARGER": charger,
+           "$HOME": r["position"], "$TARGETS": targets}
+    steps = []
+    for step in template:  # expand foreach blocks over the task points
+        if isinstance(step, dict) and "foreach" in step:
+            for p in env.get(step["foreach"], []) or []:
+                steps += [_sub(s, {"$TARGET": p}) for s in step.get("do", [])]
+        else:
+            steps.append(step)
     prog = []
-    for step in template:
+    for step in steps:
         call = {"robot": r["id"], "skill": step.get("skill"), "args": _sub(step.get("args", {}), env)}
         spec = h.get("tool_specs", {}).get(call["skill"], {})
         if call["skill"] == "fly_to":
@@ -85,7 +110,7 @@ def compile_program(template: list[dict], mission: dict, h: dict) -> list[dict]:
             call["args"]["alt"] = max(lo, min(hi, int(call["args"].get("alt", lo))))
             if spec.get("avoid_nofly"):
                 call["args"]["avoid_nofly"] = True
-        if call["skill"] in ("pick", "drop") and "item" not in call["args"]:
+        if call["skill"] in ("pick", "drop") and "item" not in call["args"] and it["id"]:
             call["args"]["item"] = it["id"]
         if call["skill"] in ("charge", "scan"):
             call["args"] = {}

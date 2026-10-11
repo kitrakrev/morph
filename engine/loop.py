@@ -108,9 +108,13 @@ def run(body: str, gens: int, n_train: int = 6, n_reg: int = 4, max_rejects: int
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("body")
+    ap.add_argument("body", nargs="?", help="built-in body name (omit with --spec)")
+    ap.add_argument("--spec", help="mission spec JSON: any robot (model file or structure), map and goal")
     ap.add_argument("--gens", type=int, default=4)
     ap.add_argument("--mtype", default="single")
     ap.add_argument("--difficulty", default="medium")
     a = ap.parse_args()
+    if a.spec:
+        from sim import spec
+        a.body = spec.load(a.spec)["name"]
     run(a.body, a.gens, mtype=a.mtype, difficulty=a.difficulty)
