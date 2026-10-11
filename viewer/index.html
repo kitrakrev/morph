@@ -34,6 +34,12 @@
   .dg .lane { fill:none; stroke:var(--line); stroke-dasharray:4 4 } .dg .t { font-size:13px } .dg .s { font-size:11px; fill:var(--muted) }
   .dg .h { font-size:13px; font-weight:700 } .dg .sec { font-size:11.5px; font-weight:700; letter-spacing:.06em; fill:var(--muted) }
   .dg .num { fill:#00684a } .dg .note { font-size:11px; fill:var(--muted); font-style:italic }
+  .dg .card2 { fill:var(--panel); stroke:var(--line); stroke-width:1 } .dg .band { stroke:none }
+  .dg .ar2 { fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round } .dg .ar2.n { stroke:#7d847f }
+  .dg .ar2.ok { stroke:#2e7d32 } .dg .ar2.bad { stroke:#c62828; stroke-dasharray:6 4 }
+  .dg .pill { fill:var(--panel); stroke-width:1.2 } .dg .pill.ok { stroke:#2e7d32 } .dg .pill.bad { stroke:#c62828 } .dg .pill.n { stroke:#7d847f }
+  .dg .pl { font-size:10px; font-weight:600 } .dg .pl.ok { fill:#2e7d32 } .dg .pl.bad { fill:#c62828 }
+  .lg i { display:inline-block; width:12px; height:12px; border-radius:3px }
   .legend { display:flex; gap:16px; flex-wrap:wrap; margin-bottom:8px; font-size:12px; color:var(--muted) } .lg { display:inline-flex; align-items:center; gap:6px } .dg .ar { stroke:#7a7f7b; stroke-width:1.4; fill:none; marker-end:url(#ah) }
   .dg .arg { stroke:#2e7d32 } .dg .arr { stroke:#c62828; stroke-dasharray:5 3 } .dg .lbl { font-size:10px; fill:var(--muted) }
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .dg .fixed { fill:#1e2533 } :root:not([data-theme="light"]) .dg .evo { fill:#16291d }
@@ -81,66 +87,84 @@ const pages = {
  },
 
  async how() {
-  const W = 168, H = 84, G = 30, X = i => 24 + i * (W + G);
-  const B = (x, y, cls, title, lines, w = W, h = H) => `<g><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="10" class="box ${cls}"/>
-    <text x="${x + 14}" y="${y + 24}" class="t"><tspan font-weight="650">${title}</tspan></text>` +
-    lines.map((l, i) => `<text x="${x + 14}" y="${y + 44 + i * 15}" class="s">${l}</text>`).join("") + `</g>`;
-  const A = (d, cls = "", lbl = "", lx = 0, ly = 0, anchor = "start") => `<path d="${d}" class="ar ${cls}"/>` +
-    (lbl ? `<text x="${lx}" y="${ly}" class="lbl" text-anchor="${anchor}">${lbl}</text>` : "");
-  const Hd = (y, n, txt) => `<text x="24" y="${y}" class="sec"><tspan class="num">${n}</tspan>  ${txt}</text>`;
-  const y1 = 150, yR = 262, yD = 382, y2 = 520, yN = 640, R = X(5) + W;
-  const svg = `<svg class="dg" viewBox="0 0 ${R + 24} 726" width="100%" role="img" aria-label="Morph system diagram">
-   <defs><marker id="ah" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="#7a7f7b"/></marker></defs>
-   ${Hd(26, "0", "INPUT — the only thing a user supplies")}
-   ${B(X(0), 40, "", "Robot spec", ["structure · terrain · goal"], W, 62)}
-   ${A(`M${X(0) + W},71 L${X(1)},71`)}
-   ${B(X(1), 40, "", "Bootstrap", ["structure → harness v1"], W, 62)}
-   ${A(`M${X(1) + W / 2},102 L${X(1) + W / 2},118 L${X(0) + W / 2},118 L${X(0) + W / 2},${y1}`)}
+  const W = 168, H = 86, G = 48, X = i => 40 + i * (W + G), R = X(5) + W;
+  const ACC = {fixed:"#5b6b8c", evo:"#2e7d32", gate:"#c77700", atlas:"#00684a", rd:"#4b57c8", "":"#8a8f8b"};
+  const B = (x, y, cls, title, lines, w = W, h = H) => `<g filter="url(#sh)">
+    <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="10" class="card2"/>
+    <rect x="${x}" y="${y}" width="5" height="${h}" rx="2" fill="${ACC[cls]}"/></g>
+    <text x="${x + 18}" y="${y + 26}" class="t"><tspan font-weight="650">${title}</tspan></text>` +
+    lines.map((l, i) => `<text x="${x + 18}" y="${y + 46 + i * 15}" class="s">${l}</text>`).join("");
+  // orthogonal path with rounded corners through points
+  const P = pts => { let d = `M${pts[0][0]},${pts[0][1]}`; const r = 10;
+    for (let i = 1; i < pts.length - 1; i++) { const [ax, ay] = pts[i - 1], [bx, by] = pts[i], [cx, cy] = pts[i + 1];
+      const d1 = Math.min(r, Math.hypot(bx - ax, by - ay) / 2), d2 = Math.min(r, Math.hypot(cx - bx, cy - by) / 2);
+      const ux = Math.sign(bx - ax), uy = Math.sign(by - ay), vx = Math.sign(cx - bx), vy = Math.sign(cy - by);
+      d += ` L${bx - ux * d1},${by - uy * d1} Q${bx},${by} ${bx + vx * d2},${by + vy * d2}`; }
+    const [lx, ly] = pts[pts.length - 1]; return d + ` L${lx},${ly}`; };
+  const A = (pts, kind = "n") => `<path d="${P(pts)}" class="ar2 ${kind}" marker-end="url(#ah-${kind})"/>`;
+  const L = (x, y, txt, kind = "n") => { const w = txt.length * 6 + 14;
+    return `<g><rect x="${x - w / 2}" y="${y - 11}" width="${w}" height="20" rx="10" class="pill ${kind}"/><text x="${x}" y="${y + 3}" text-anchor="middle" class="pl ${kind}">${txt}</text></g>`; };
+  const Hd = (y, n, txt) => `<text x="${R + 4}" y="${y}" text-anchor="end" class="sec"><tspan class="num">${n}</tspan>  ${txt}</text>`;
+  const Band = (y, h, tint) => `<rect x="12" y="${y}" width="${R + 4}" height="${h}" rx="14" fill="${tint}" class="band"/>`;
+  const y0 = 46, y1 = 186, yR = 300, yD = 430, y2 = 582, yN = 708, cy1 = y1 + H / 2, cy2 = y2 + H / 2;
+  const mk = (id, c) => `<marker id="ah-${id}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${c}"/></marker>`;
+  const svg = `<svg class="dg" viewBox="0 0 ${R + 28} 800" width="100%" role="img" aria-label="Morph system diagram">
+   <defs>${mk("n", "#7d847f")}${mk("ok", "#2e7d32")}${mk("bad", "#c62828")}
+     <filter id="sh" x="-5%" y="-5%" width="110%" height="120%"><feDropShadow dx="0" dy="1.5" stdDeviation="2" flood-opacity="0.12"/></filter></defs>
+   ${Band(14, 112, "rgba(120,120,120,0.04)")}${Band(140, 262, "rgba(46,125,50,0.05)")}${Band(416, 112, "rgba(0,104,74,0.05)")}${Band(540, 246, "rgba(199,119,0,0.05)")}
+   ${Hd(36, "0", "INPUT — the only thing a user supplies")}
+   ${B(X(0), y0, "", "Robot spec", ["structure · terrain · goal"], W, 64)}
+   ${A([[X(0) + W, y0 + 32], [X(1) - 3, y0 + 32]])}
+   ${B(X(1), y0, "", "Bootstrap", ["structure → harness v1"], W, 64)}
+   ${A([[X(1) + W / 2, y0 + 64], [X(1) + W / 2, y1 - 22], [X(0) + W / 2, y1 - 22], [X(0) + W / 2, y1 - 3]])}
 
-   ${Hd(y1 - 14 + 0, "1", "LOOP 1 — RUN MISSIONS  (fixed code executes the harness's own workflow graph)")}
-   ${B(X(0), y1, "evo", "Harness vN", ["evolvable data in Atlas", "workflow · rules · beliefs …"])}
-   ${A(`M${X(0) + W},${y1 + H / 2} L${X(1)},${y1 + H / 2}`)}
-   ${B(X(1), y1, "", "Planner", ["Claude Haiku · fixed all day", "1 plan template / version"])}
-   ${A(`M${X(1) + W},${y1 + H / 2} L${X(2)},${y1 + H / 2}`)}
+   ${Hd(162, "1", "LOOP 1 — RUN MISSIONS  ·  fixed code executes the harness's own workflow graph")}
+   ${B(X(0), y1, "evo", "Harness vN", ["evolvable data in Atlas", "workflow · rules · beliefs"])}
+   ${A([[X(0) + W, cy1], [X(1) - 3, cy1]])}
+   ${B(X(1), y1, "", "Planner", ["Claude Haiku · fixed", "1 plan template / version"])}
+   ${A([[X(1) + W, cy1], [X(2) - 3, cy1]])}
    ${B(X(2), y1, "evo", "tier1_check", ["fast feasibility (<1 s)", "uses harness beliefs"])}
-   ${A(`M${X(2) + W},${y1 + H / 2} L${X(3)},${y1 + H / 2}`, "arg", "pass", X(2) + W + 6, y1 + H / 2 - 6)}
+   ${A([[X(2) + W, cy1], [X(3) - 3, cy1]], "ok")}${L(X(2) + W + G / 2, cy1 - 18, "pass", "ok")}
    ${B(X(3), y1, "fixed", "tier2_sim  🔒", ["true physics", "energy · altitude · wind"])}
-   ${A(`M${X(3) + W},${y1 + H / 2} L${X(4)},${y1 + H / 2}`)}
+   ${A([[X(3) + W, cy1], [X(4) - 3, cy1]])}
    ${B(X(4), y1, "fixed", "Verifier  🔒", ["delivered? violations?", "reserve · deadline"])}
-   ${A(`M${X(4) + W},${y1 + H / 2} L${X(5)},${y1 + H / 2}`)}
+   ${A([[X(4) + W, cy1], [X(5) - 3, cy1]])}
    ${B(X(5), y1, "rd", "Raindrop", ["event per trial", "failure signals"])}
-   ${A(`M${X(2) + W / 2},${y1 + H} L${X(2) + W / 2},${yR}`, "arr", "fail", X(2) + W / 2 + 8, y1 + H + 22)}
-   ${B(X(2), yR, "evo", "replan", ["switch to fallback program"], W, 58)}
-   ${A(`M${X(2) + W},${yR + 29} L${X(3) + W / 2},${yR + 29} L${X(3) + W / 2},${y1 + H}`, "arg")}
-   <text x="${X(3) + W / 2 + 14}" y="${yR + 26}" class="note">tier1_check + replan were added</text>
-   <text x="${X(3) + W / 2 + 14}" y="${yR + 42}" class="note">by the evolution agent (v8)</text>
+   ${A([[X(2) + W / 2, y1 + H], [X(2) + W / 2, yR - 3]], "bad")}${L(X(2) + W / 2, y1 + H + 18, "fail", "bad")}
+   ${B(X(2), yR, "evo", "replan", ["switch to fallback program"], W, 60)}
+   ${A([[X(2) + W, yR + 30], [X(3) + W / 2, yR + 30], [X(3) + W / 2, y1 + H + 3]], "ok")}
+   <text x="${X(5)}" y="${yR + 26}" class="note">tier1_check + replan were</text>
+   <text x="${X(5)}" y="${yR + 42}" class="note">added by evolution (v8)</text>
 
-   ${Hd(yD - 14, "2", "DATA — MongoDB Atlas")}
-   ${A(`M${X(4) + W / 2},${y1 + H} L${X(4) + W / 2},${yD}`)}
-   ${B(X(1), yD, "atlas", "MongoDB Atlas", ["trials · failures (autoEmbed, Voyage) · episodic memory · time-series metrics · checkpoints",
-      "harness lineage (unique version index) · evaluations · held-out outcomes never reach agent-readable memory"], R - X(1), 66)}
+   ${Hd(438, "2", "DATA — MongoDB Atlas")}
+   ${A([[X(4) + W / 2, y1 + H], [X(4) + W / 2, 270], [X(4) + W / 2, yD + 18 - 3]])}
+   ${B(X(1), yD + 18, "atlas", "MongoDB Atlas", ["trials · failures (autoEmbed, Voyage) · time-series metrics · checkpoints · Agent Engine memory",
+      "harness lineage (unique version index) · evaluations · held-out outcomes never reach agent-readable memory"], R - X(1), 70)}
 
-   ${Hd(y2 - 14, "3", "LOOP 2 — EVOLVE THE HARNESS  (reads right → left)")}
-   ${A(`M${X(5) + W / 2},${yD + 66} L${X(5) + W / 2},${y2}`)}
-   ${B(X(5), y2, "atlas", "Evidence", ["$rankFusion: vector +", "keyword over failures"])}
-   ${A(`M${X(5)},${y2 + H / 2} L${X(4) + W},${y2 + H / 2}`)}
+   <text x="${X(0)}" y="562" class="sec"><tspan class="num">3</tspan>  LOOP 2 — EVOLVE THE HARNESS  ·  reads right → left</text>
+   ${A([[X(5) + W / 2, yD + 88], [X(5) + W / 2, y2 - 3]])}
+   ${B(X(5), y2, "atlas", "Evidence", ["$rankFusion over failures", "+ Raindrop signals"])}
+   ${A([[X(5), cy2], [X(4) + W + 3, cy2]])}
    ${B(X(4), y2, "", "Evolution agent", ["Claude Sonnet", "ONE edit + prediction"])}
-   ${A(`M${X(4)},${y2 + H / 2} L${X(3) + W},${y2 + H / 2}`)}
+   ${A([[X(4), cy2], [X(3) + W + 3, cy2]])}
    ${B(X(3), y2, "evo", "Candidate vN+1", ["legality check:", "locked fields, primitives"])}
-   ${A(`M${X(3)},${y2 + H / 2} L${X(2) + W},${y2 + H / 2}`)}
+   ${A([[X(3), cy2], [X(2) + W + 3, cy2]])}
    ${B(X(2), y2, "", "Re-run Loop 1", ["train + regression", "same planner model"])}
-   ${A(`M${X(2)},${y2 + H / 2} L${X(1) + W},${y2 + H / 2}`)}
+   ${A([[X(2), cy2], [X(1) + W + 3, cy2]])}
    ${B(X(1), y2, "gate", "Gate  🔒", ["train ↑ · safety not worse", "no regression · cost"])}
-   ${A(`M${X(1)},${y2 + H / 2} L${X(0) + W},${y2 + H / 2}`, "arg", "accept", X(1) - G / 2, y2 + H / 2 - 7, "middle")}
-   ${B(X(0), y2, "evo", "Promote", ["one Atlas transaction", "new baseline"])}
-   ${A(`M${X(0)},${y2 + H / 2} L10,${y2 + H / 2} L10,${y1 + H / 2} L${X(0)},${y1 + H / 2}`, "arg")}
-   <text x="14" y="${(y1 + y2) / 2 + 60}" class="lbl" transform="rotate(-90 14 ${(y1 + y2) / 2 + 60})">promoted → new harness vN</text>
-   ${A(`M${X(1) + W / 2},${y2 + H} L${X(1) + W / 2},${yN}`, "arr", "reject → logged, agent sees it", X(1) + W / 2 + 8, y2 + H + 22)}
-   ${B(X(1), yN, "", "Rejected", ["e.g. v14: 30 no-fly violations", "v19: min altitude 2 → more violations"], W + W / 2, 70)}
-   ${B(X(3), yN, "fixed", "Held-out scoring  🔒", ["after acceptance only · never used for selection", "drone: v1 0/12 → v17 12/12 (n=12), 0 violations"], R - X(3), 70)}
+   ${A([[X(1), cy2], [X(0) + W + 3, cy2]], "ok")}${L(X(1) - G / 2, cy2 - 18, "accept", "ok")}
+   ${B(X(0), y2, "evo", "Promote", ["one Atlas transaction", "becomes harness vN"])}
+   ${A([[X(0), cy2], [18, cy2], [18, cy1], [X(0) - 3, cy1]], "ok")}
+   ${L(62, (cy1 + cy2) / 2 + 40, "new vN", "ok")}
+   ${A([[X(1) + W / 2, y2 + H], [X(1) + W / 2, yN - 3]], "bad")}${L(X(1) + W / 2, y2 + H + 18, "reject", "bad")}
+   ${B(X(1), yN, "", "Rejected · logged", ["v14: 30 no-fly violations", "the agent sees why next round"], W + 40, 66)}
+   ${B(X(3), yN, "fixed", "Held-out scoring  🔒", ["after acceptance only · never used for selection",
+      "drone v1 0/12 → v17 12/12 (n=12), 0 violations"], R - X(3), 66)}
   </svg>`;
   const legend = [["fixed","fixed code 🔒"],["evo","evolvable harness data"],["gate","gate 🔒"],["atlas","MongoDB Atlas"],["rd","Raindrop"]]
-    .map(([c,l]) => `<span class="lg"><svg width="14" height="14" class="dg"><rect width="14" height="14" rx="3" class="box ${c}"/></svg>${l}</span>`).join("");
+    .map(([c,l]) => `<span class="lg"><i style="background:${ACC[c]}"></i>${l}</span>`).join("") +
+    `<span class="lg"><svg width="28" height="10"><path d="M1,5 L22,5" stroke="#2e7d32" stroke-width="2"/><path d="M20,1 L27,5 L20,9z" fill="#2e7d32"/></svg>pass / accept</span>` +
+    `<span class="lg"><svg width="28" height="10"><path d="M1,5 L22,5" stroke="#c62828" stroke-width="2" stroke-dasharray="4 3"/><path d="M20,1 L27,5 L20,9z" fill="#c62828"/></svg>fail / reject</span>`;
   return `<h2>How it works</h2><p class="sub">One cycle: Loop 1 runs missions with the current harness; Loop 2 proposes one edit, re-runs, and the gate decides. The model never changes.</p>
    <div class="card"><div class="legend">${legend}</div>${svg}</div>
    <div class="card"><b>Why this is harness learning, not prompt tuning:</b> accepted edits changed the <i>workflow graph</i> (a feasibility check and a replan branch to a safer fallback, v8), the harness's <i>beliefs</i> and <i>budgets</i>, and body-specific <i>rules</i> (v17). The model, physics and verifier never change.</div>`;
