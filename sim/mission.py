@@ -16,7 +16,7 @@ def build_sim(mission: dict) -> Sim:
         body = Body.from_structure(r["structure"])
         robots[r["id"]] = Robot(r["id"], body, tuple(r["position"]), body.battery_wh)
     items = {i["id"]: Item(i["id"], float(i["weight_kg"]), tuple(i["pos"])) for i in mission.get("items", [])}
-    backend = mission.get("physics") or os.environ.get("MORPH_PHYSICS", "grid")
+    backend = mission.get("physics") or os.environ.get("MORPH_PHYSICS", "mujoco")
     if backend == "mujoco":
         from sim.mujoco_backend import MujocoSim
         sim = MujocoSim(world, robots, items)

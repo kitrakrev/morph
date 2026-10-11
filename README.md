@@ -50,6 +50,13 @@ rule (v17). The v1 drone program used `move_to` (a ground move); v17 flies every
 **Fixed code (no agent edits it):** `sim/` world, physics, skills, tier 1/2, verifier, renderer;
 `engine/runner.py`, `engine/gate.py`.
 
+**Physics: MuJoCo by default.** Every body executes its skills in MuJoCo (`sim/mujoco_backend.py`):
+rotorcraft fly a 4-rotor Skydio-X2-style quad under a geometric controller with building collisions and
+altitude gusts; ground bodies (wheels, tracks, legs, rail) and the fixed-wing VTOL are driven rigid bodies
+with terrain rolling resistance or wing lift/drag. Energy is hotel power plus real mechanical work, calibrated
+so a steady floor cell matches the original grid model. Set `MORPH_PHYSICS=grid` (or `mission["physics"]`)
+for the fast closed-form grid physics.
+
 **Evolvable data (the harness document):** workflow graph, rules, constraints, tool specs, beliefs
 (energy model, reserve), reports read, retrieval policy, model routing, budgets, composed skills.
 Locked: `constraints.nofly` and `constraints.collision` stay `hard`; tools must be primitives.

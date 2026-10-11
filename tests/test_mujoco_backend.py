@@ -32,9 +32,11 @@ def _program(m, alt=2):
             fly(near(g["to"])), charge, fly(g["to"]), {"robot": rid, "skill": "drop", "args": {"item": g["item"]}}]
 
 
-def test_backend_selection():
+def test_backend_selection(monkeypatch):
     assert type(_drone_at([0, 0, 0], "grid")) is Sim
     assert isinstance(_drone_at([0, 0, 0]), MujocoSim)
+    monkeypatch.delenv("MORPH_PHYSICS", raising=False)
+    assert isinstance(_drone_at([0, 0, 0], None), MujocoSim)  # MuJoCo is the default
 
 
 def test_flight_tracks_and_matches_grid_energy():
@@ -64,3 +66,25 @@ def test_heldout_delivery_succeeds_on_real_dynamics(seed):
     mj = verifier.score(m, tier2.simulate({**m, "physics": "mujoco"}, prog))
     assert grid["success"] and mj["success"], mj
     assert abs(mj["energy_wh"] - grid["energy_wh"]) / grid["energy_wh"] < 0.2
+
+
+@pytest.mark.parametrize("body", ["rover", "tracked", "quadruped", "hexapod", "railcart", "fixed_wing_vtol"])
+def test_every_body_runs_on_mujoco(body):
+    from sim.missions import mission_set
+    m = mission_set(body, "heldout", 1)[0]
+    rid = m["robots"][0]["id"]
+    air = body == "fixed_wing_vtol"
+    g = m["goal"]["deliver"]
+    it = next(i for i in m["items"] if i["id"] == g["item"])
+
+    def go(p):
+        return ({"robot": rid, "skill": "fly_to", "args": {"pos": p, "alt": 4}} if air
+                else {"robot": rid, "skill": "move_to", "args": {"pos": p}})
+    prog = [go(it["pos"]), {"robot": rid, "skill": "pick", "args": {"item": g["item"]}},
+            go(g["to"]), {"robot": rid, "skill": "drop", "args": {"item": g["item"]}}]
+    sim = tier2.simulate({**m, "physics": "mujoco"}, prog)
+    grid = verifier.score(m, tier2.simulate({**m, "physics": "grid"}, prog))
+    mj = verifier.score(m, sim)
+    assert sim._quads, "body was not executed in MuJoCo"
+    assert mj["delivered"] == grid["delivered"]
+    assert abs(mj["energy_wh"] - grid["energy_wh"]) / grid["energy_wh"] < 0.5

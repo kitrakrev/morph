@@ -194,6 +194,120 @@ class Quad:
         return joules, hit
 
 
+# ---- ground and fixed-wing bodies --------------------------------------------
+# Rolling / gait resistance coefficient per mode, and its multiplier per terrain.
+CRR = {"wheel": 0.03, "tracks": 0.06, "legs": 0.10, "rail": 0.005}
+TERRAIN_DRAG = {T.FLOOR: 1.0, T.CHARGER: 1.0, T.RAIL: 1.0, T.RUBBLE: 2.2, T.STAIRS: 2.0, T.NOFLY: 1.0}
+DRIVE_ETA = 0.7              # motor + drivetrain efficiency
+FW_CRUISE = 3.0              # m/s, fixed-wing cruise (1 cell per grid step)
+FW_STALL = 2.0               # below this the wing lifts only (v/stall)^2 of the weight
+FW_CD0, FW_K = 0.04, 0.05    # parasitic drag coeff (N per (m/s)^2 per kg), induced drag factor
+
+
+class Mover:
+    """Driven rigid body on slide joints (x, y[, z]) for ground and fixed-wing modes.
+
+    Actuators are body-frame-free forces (an abstraction of wheels / tracks / legs /
+    propeller+surfaces); dynamics, inertia, resistance and aero are integrated by MuJoCo.
+    Energy = hotel power * time + positive actuator work / efficiency (+ VTOL lift power).
+    """
+
+    def __init__(self, sim: Sim, r: Robot, mode: str):
+        self.mode, self.sim = mode, sim
+        self.base_mass = r.body.mass_kg
+        self.axes = 3 if mode == "fixed_wing" else min(sim.world.dims, 2)
+        names = "xyz"[: self.axes]
+        joints = "".join(f'<joint name="{a}" type="slide" axis="{" ".join("1" if a == b else "0" for b in "xyz")}"/>'
+                         for a in names)
+        fmax = 20 * self.base_mass * G
+        acts = "".join(f'<motor joint="{a}" ctrlrange="{-fmax} {fmax}" ctrllimited="true"/>' for a in names)
+        grav = f"0 0 -{G}" if self.axes == 3 else "0 0 0"
+        self.model = mujoco.MjModel.from_xml_string(f"""
+<mujoco><option timestep="{DT}" gravity="{grav}"/>
+  <worldbody><body name="b">{joints}<geom type="sphere" size="0.2" mass="{self.base_mass}" contype="0" conaffinity="0"/></body></worldbody>
+  <actuator>{acts}</actuator></mujoco>""")
+        self.data = mujoco.MjData(self.model)
+        self.bid = self.model.body("b").id
+        self.data.qpos[:] = self._center(r.pos)
+        self.v_ref = np.zeros(self.axes)
+        self.cell_s = 1 / FW_CRUISE if mode == "fixed_wing" else 0.5
+        self.k_hover = 1 / (FOM * math.sqrt(2 * RHO * 4 * math.pi * (0.6 * _arm(self.base_mass)) ** 2))
+        # hotel power (compute, sensors, idle drive) sized so an unloaded steady floor cell
+        # costs the grid model's BASE_WH; everything mechanical on top is MuJoCo work
+        self.hotel_w = 0.0
+        floor_cells = physics.STEP_COST.get(mode, {}).get(T.FLOOR, 1)
+        self.hotel_w = max(physics.BASE_WH[mode] * 3600 - self._calibrate(floor_cells), 0.0) / (self.cell_s * floor_cells)
+
+    def set_payload(self, kg: float):
+        self.model.body_mass[self.bid] = self.base_mass + kg
+
+    def _center(self, p: Pos) -> np.ndarray:
+        c = np.array([p[0] + 0.5] + ([p[1] + 0.5] if len(p) > 1 else []) + ([p[2] + 0.5] if len(p) > 2 else []))
+        return c[: self.axes]
+
+    def _resist(self, v: np.ndarray, terrain: T) -> np.ndarray:
+        m = self.model.body_mass[self.bid]
+        if self.mode == "fixed_wing":
+            speed = float(np.linalg.norm(v[:2]))
+            lift = m * G * min(1.0, (speed / FW_STALL) ** 2)
+            drag = FW_CD0 * self.base_mass * speed ** 2 + FW_K * (m * G) ** 2 / max(speed, FW_STALL) ** 2 / self.base_mass
+            f = np.array([0.0, 0.0, lift])
+            if speed > 1e-6:
+                f[:2] -= drag * v[:2] / speed
+            return f
+        rr = CRR[self.mode] * TERRAIN_DRAG.get(terrain, 1.0) * m * G
+        return -rr * v / (np.linalg.norm(v) + 0.05)  # smoothed Coulomb rolling resistance
+
+    def run(self, a: Pos, b: Pos, after: Pos | None, terrain: T, cells: int) -> float:
+        """Drive a->b over `cells` grid steps; returns joules drawn."""
+        pa, pb = self._center(a), self._center(b)
+        d0 = pb - pa
+        straight = after is not None and np.allclose(d0, self._center(after) - pb)
+        if self.mode == "fixed_wing" and after is not None and d0[2] == 0:
+            d1 = self._center(after) - pb
+            v1 = FW_CRUISE * (d0 + d1) / (np.linalg.norm(d0 + d1) + 1e-9) if d1[2] == 0 else np.zeros(3)
+        else:
+            v1 = d0 / (self.cell_s * cells) if straight else np.zeros(self.axes)
+        T_s = self.cell_s * cells
+        n = int(T_s / DT)
+        joules = self.hotel_w * T_s
+        for i in range(n):
+            s = (i + 1) / n
+            p_t, v_t, a_t = _hermite(pa, self.v_ref * T_s, pb, v1 * T_s, s)
+            v = self.data.qvel.copy()
+            ext = self._resist(v, terrain)
+            m = self.model.body_mass[self.bid]
+            f = m * (40.0 * (p_t - self.data.qpos) + 12.0 * (v_t / T_s - v) + a_t / T_s**2) - ext
+            if self.axes == 3:
+                f[2] += m * G
+            self.data.qfrc_applied[:] = ext
+            self.data.ctrl[:] = f
+            mujoco.mj_step(self.model, self.data)
+            joules += max(float(f @ v), 0.0) / DRIVE_ETA * DT
+            if self.mode == "fixed_wing":  # VTOL lift rotors carry whatever the wing does not
+                unsupported = max(m * G - ext[2], 0.0)
+                joules += self.k_hover * unsupported ** 1.5 * DT
+        self.v_ref = v1
+        if self.axes == 3 and len(b) == 3 and b[2] == 0:
+            self.v_ref = np.zeros(3)
+        return joules
+
+    def _calibrate(self, cells: int) -> float:
+        """Mechanical joules for one unloaded floor cell at steady speed."""
+        q0, v0 = self.data.qpos.copy(), self.v_ref.copy()
+        z = (0,) * (self.axes - 1)
+        if self.mode == "fixed_wing":
+            z = (0, 4)
+        a, b, c = (0, *z), (1, *z), (2, *z)
+        self.data.qpos[:] = self._center(a)
+        self.data.qvel[:] = (self._center(b) - self._center(a)) / (self.cell_s * cells)
+        self.v_ref = self.data.qvel.copy()
+        j = self.run(a, b, c, T.FLOOR, cells)
+        self.data.qpos[:], self.data.qvel[:], self.v_ref = q0, 0, v0
+        mujoco.mj_forward(self.model, self.data)
+        return j
+
+
 class MujocoSim(Sim):
     """Sim whose rotorcraft moves are executed by MuJoCo rigid-body dynamics."""
 
@@ -208,26 +322,41 @@ class MujocoSim(Sim):
         finally:
             self.__dict__["quads"] = quads
 
+    def mover(self, r: Robot, mode: str) -> Mover:
+        key = f"{r.id}:{mode}"
+        m = self._quads.get(key)
+        if m is None:
+            m = self._quads[key] = Mover(self, r, mode)
+        return m
+
     def quad(self, r: Robot) -> Quad:
         q = self._quads.get(r.id)
         if q is None:
             q = self._quads[r.id] = Quad(self, r, self.world.seed * 1000 + len(self._quads))
         return q
 
-    def fly_to(self, rid: str, pos: list[int], alt: int = 0, avoid_nofly: bool = False) -> dict:
+    def _with_route(self, skill: str, rid: str, *args) -> dict:
         # dry-run the same skill on grid physics to learn the waypoint route (lookahead for corners)
         dry = Sim(self.world, copy.deepcopy(self.robots), copy.deepcopy(self.items))
-        dry.fly_to(rid, pos, alt, avoid_nofly)
+        getattr(dry, skill)(rid, *args)
         route = [tuple(f["robots"][rid]["pos"]) for f in dry.frames]
         self.__dict__["route"] = {p: route[i + 1] if i + 1 < len(route) else None for i, p in enumerate(route)}
         try:
-            return super().fly_to(rid, pos, alt, avoid_nofly)
+            return getattr(super(), skill)(rid, *args)
         finally:
             self.__dict__.pop("route", None)
 
+    def fly_to(self, rid: str, pos: list[int], alt: int = 0, avoid_nofly: bool = False) -> dict:
+        return self._with_route("fly_to", rid, pos, alt, avoid_nofly)
+
+    def move_to(self, rid: str, pos: list[int]) -> dict:
+        return self._with_route("move_to", rid, pos)
+
     def _advance(self, r: Robot, nxt: Pos, mode: str) -> bool:
-        if mode != "flight" or not r.alive:
-            return super()._advance(r, nxt, mode)
+        if not r.alive:
+            return False
+        if mode != "flight":
+            return self._advance_mover(r, nxt, mode)
         q = self.quad(r)
         q.set_payload(self.payload(r))
         if q.model.actuator_ctrlrange[:, 1].sum() < (q.base_mass + self.payload(r)) * G:
@@ -236,6 +365,16 @@ class MujocoSim(Sim):
         joules, hit = q.fly_cell(r.pos, nxt, self.__dict__.get("route", {}).get(nxt))
         # calibrate: unloaded hover-cell == grid model (BASE + HOVER Wh), so batteries keep meaning
         wh = joules / q.hover_cell_j * (physics.BASE_WH["flight"] + physics.HOVER_WH)
+        return self._commit(r, nxt, mode, wh, hit)
+
+    def _advance_mover(self, r: Robot, nxt: Pos, mode: str) -> bool:
+        mv = self.mover(r, mode)
+        mv.set_payload(self.payload(r))
+        cells = physics.step_cost(self.world, mode, nxt)
+        wh = mv.run(r.pos, nxt, self.__dict__.get("route", {}).get(nxt), self.world.at(nxt), cells) / 3600
+        return self._commit(r, nxt, mode, wh, False)
+
+    def _commit(self, r: Robot, nxt: Pos, mode: str, wh: float, hit: bool) -> bool:
         r.battery -= wh
         r.drained_wh += wh
         self.t += physics.step_cost(self.world, mode, nxt)
