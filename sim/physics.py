@@ -24,6 +24,7 @@ STEP_COST: dict[str, dict[T, int | None]] = {
 # Wh drained per cell moved at zero payload
 BASE_WH: dict[str, float] = {"wheel": 0.15, "tracks": 0.25, "legs": 0.35, "rail": 0.05, "flight": 0.5}
 HOVER_WH = 0.08          # flight: per step spent airborne regardless of motion
+WIND_PER_Z = 0.12        # flight: hover/wind drain grows 12% per altitude level
 CLIMB_WH = 0.6           # flight: per +1 altitude
 CHARGE_WH_PER_STEP = 6.0
 

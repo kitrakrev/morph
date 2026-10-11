@@ -106,6 +106,9 @@ def city_2d(w: int = 40, h: int = 40, seed: int = 0, difficulty: str = "medium")
     return World(g, seed, chargers)
 
 
+NOFLY_CEIL = 6  # no-fly applies to altitudes 1..5
+
+
 def city_3d(w: int = 40, h: int = 40, zmax: int = 10, seed: int = 0, difficulty: str = "medium") -> World:
     """2D city as ground layer, buildings extruded to random heights, a no-fly column."""
     base = city_2d(w, h, seed, difficulty)
@@ -114,13 +117,17 @@ def city_3d(w: int = 40, h: int = 40, zmax: int = 10, seed: int = 0, difficulty:
     g = np.full((w, h, zmax), T.AIR, dtype=np.int8)
     g[:, :, 0] = base.grid
     walls = base.grid == T.WALL
-    heights = rng.integers(3, zmax - 2, size=(w, h))
-    for x, y in np.argwhere(walls):
-        g[x, y, : heights[x, y]] = T.WALL
+    # one height per building block (blocks are 5x5 on an 8-cell grid)
+    for bx in range(2, w - 2, 8):
+        for by in range(2, h - 2, 8):
+            top = int(rng.integers(3, zmax - 2))
+            blk = walls[bx:bx + 5, by:by + 5]
+            g[bx:bx + 5, by:by + 5, :top][blk] = T.WALL
     # no-fly zone: a rectangular column (e.g. active fire / helicopter corridor)
     nx, ny = int(rng.integers(w // 4, w // 2)), int(rng.integers(h // 4, h // 2))
-    box = g[nx:nx + fw, ny:ny + fh, 1:]
-    g[nx:nx + fw, ny:ny + fh, 1:] = np.where(box == T.AIR, T.NOFLY, box)
+    # no-fly zone has a ceiling: restricted below NOFLY_CEIL, open airspace above
+    box = g[nx:nx + fw, ny:ny + fh, 1:NOFLY_CEIL]
+    g[nx:nx + fw, ny:ny + fh, 1:NOFLY_CEIL] = np.where(box == T.AIR, T.NOFLY, box)
     chargers = [(*c, 0) for c in base.chargers]
     return World(g, seed, chargers)
 

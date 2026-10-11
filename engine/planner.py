@@ -15,6 +15,8 @@ from engine.memory import Memory
 SYMBOLS = {"$ROBOT": "robot id", "$ITEM": "item id", "$ITEM_POS": "item position",
            "$DEST": "delivery position", "$CHARGER": "charger nearest the pickup->dest route"}
 
+PLANNER_MODEL = "haiku"
+
 SYSTEM = """You are the mission planner inside a robot-fleet harness. Output ONLY JSON.
 Write a reusable plan TEMPLATE for one robot body. Each step: {"skill": <primitive>, "args": {...}}.
 Primitives: move_to(pos), fly_to(pos, alt, avoid_nofly), pick(item), drop(item), charge(), scan().
@@ -45,7 +47,8 @@ def plan_template(h: dict, body: dict, terrain_summary: dict | None = None) -> d
         reports["terrain_summary"] = terrain_summary
     user = json.dumps({"body": body, "harness": harness_view, "reports": reports,
                        "memory": context(h, body.get("kind", "?")), "symbols": SYMBOLS})
-    out = llm.chat_json(SYSTEM, user, tier=h.get("model_routing", {}).get("plan", "cheap"))
+    # planner model is FIXED for the whole day (Claude Haiku via Claude Code headless); no fallback
+    out = llm.claude_json(SYSTEM, user, model=PLANNER_MODEL)
     tpl = out["json"]
     if not out.get("_cached"):
         from engine import telemetry

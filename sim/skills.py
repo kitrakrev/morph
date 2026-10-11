@@ -69,7 +69,7 @@ class Sim:
         steps = physics.step_cost(self.world, mode, nxt)
         wh = physics.move_energy(r.body, mode, r.pos, nxt, self.payload(r))
         if mode == "flight":
-            wh += physics.HOVER_WH * steps
+            wh += physics.HOVER_WH * steps * (1 + physics.WIND_PER_Z * (nxt[2] if len(nxt) == 3 else 0))
         r.battery -= wh
         r.drained_wh += wh
         self.t += steps

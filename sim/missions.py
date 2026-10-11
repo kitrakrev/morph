@@ -43,7 +43,7 @@ def _cells(sim, body_kind):
     ok = [T.RAIL] if body_kind == "railcart" else [T.FLOOR]
     mask = np.isin(g, ok)
     if sim.world.dims == 3:  # no pickups/drops under a no-fly column: takeoff/landing would breach it
-        mask &= ~(sim.world.grid[:, :, 1:] == T.NOFLY).any(axis=2)
+        mask &= ~(sim.world.grid[:, :, 1:] == T.NOFLY).any(axis=2)  # takeoff/landing passes through the zone
     return [tuple(int(c) for c in p) for p in np.argwhere(mask)]
 
 

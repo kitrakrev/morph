@@ -45,7 +45,41 @@ def _extract_json(text: str):
     if m:
         text = m.group(1)
     start = min([i for i in (text.find("{"), text.find("[")) if i >= 0], default=0)
-    return json.loads(text[start:])
+    obj, _ = json.JSONDecoder().raw_decode(text[start:])  # ignore any trailing text
+    return obj
+
+
+CLAUDE_MODEL = os.getenv("MORPH_CLAUDE_MODEL", "sonnet")
+
+
+def claude_json(system: str, user: str, timeout: int = 180, model: str | None = None, retries: int = 1) -> dict:
+    """Claude via Claude Code headless mode (`claude -p`). Cached in Atlas by prompt hash."""
+    import subprocess
+    model = model or CLAUDE_MODEL
+    key = hashlib.sha256(json.dumps(["claude", model, system, user]).encode()).hexdigest()
+    hit = db().llm_cache.find_one({"key": key})
+    if hit:
+        return {**hit["response"], "_cached": True}
+    t0, last = time.time(), None
+    for _ in range(retries + 1):
+        proc = subprocess.run(["claude", "-p", f"{system}\n\n{user}", "--model", model,
+                               "--output-format", "json"], capture_output=True, text=True, timeout=timeout,
+                              cwd="/tmp")
+        try:
+            msgs = json.loads(proc.stdout)
+            res = next(m for m in reversed(msgs if isinstance(msgs, list) else [msgs]) if m.get("type") == "result")
+            if res.get("is_error"):
+                raise RuntimeError(f"claude -p error: {res.get('result')}")
+            parsed = _extract_json(res["result"])
+            break
+        except (ValueError, StopIteration, RuntimeError) as e:
+            last = e
+    else:
+        raise RuntimeError(f"claude -p failed: {last}")
+    out = {"json": parsed, "model": f"claude-code:{model}",
+           "latency_s": round(time.time() - t0, 2), "cost_usd": res.get("total_cost_usd")}
+    db().llm_cache.insert_one({"key": key, "tier": "claude", "response": out, "ts": time.time()})
+    return out
 
 
 def chat_json(system: str, user: str, tier: str = "cheap", max_tokens: int = 1500) -> dict:

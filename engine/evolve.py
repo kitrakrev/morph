@@ -42,7 +42,12 @@ def similar_failures(body: str, query: str, k: int = 6) -> list[str]:
 
 
 def propose(parent: dict, parent_eval: dict, rejected: list[dict]) -> dict:
+    from engine.planner import SYSTEM as PLANNER_SYSTEM
     fails = [t["diagnosis"] for t in parent_eval["trials"] if not t["score"]["success"]]
+    sequences = [{"mission": t["mission_id"], "template": t.get("which"),
+                  "actions": " > ".join(c["skill"] for c in t["program"]),
+                  "result": "OK" if t["score"]["success"] else t["diagnosis"].split(",")[0]}
+                 for t in parent_eval["trials"]]
     past = similar_failures(parent["body_type"], "; ".join(fails[:3]) or "mission failure")
     user = json.dumps({
         "harness": {k: parent.get(k) for k in EDITABLE},
@@ -51,13 +56,19 @@ def propose(parent: dict, parent_eval: dict, rejected: list[dict]) -> dict:
                          "violations": parent_eval["violations"]},
         "current_failures": fails,
         "similar_past_failures": past,
+        "planner_instructions": PLANNER_SYSTEM,
+        "trial_action_sequences": sequences,
         "planner_template": parent_eval["template"]["primary"],
         "planner_fallback": parent_eval["template"]["fallback"],
         "rejected_edits": [{"changes": r["changes"], "reason": r["reason"]} for r in rejected],
     }, default=str)
     from engine.harness import edit_budget
-    out = llm.chat_json(SYSTEM.replace("EDIT_BUDGET", str(edit_budget(parent["version"]))), user,
-                        tier="strong", max_tokens=2500)
+    system = SYSTEM.replace("EDIT_BUDGET", str(edit_budget(parent["version"])))
+    try:
+        out = llm.claude_json(system, user)
+    except Exception as e:  # fall back to the free OpenRouter model
+        print(f"    claude -p failed ({str(e)[:80]}); falling back to OpenRouter")
+        out = llm.chat_json(system, user, tier="strong", max_tokens=2500)
     edit = out["json"]
     if not out.get("_cached"):
         from engine import telemetry

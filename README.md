@@ -43,21 +43,28 @@ persistent Atlas memory and checkpoint/resume.
 (energy model, reserve), reports read, retrieval policy, model routing, budgets, composed skills.
 Locked: `constraints.nofly` and `constraints.collision` stay `hard`; tools must be primitives.
 
-## Results so far (drone, same planner model throughout)
+## Results (drone, same planner model for every row)
 
-| Version | Edit | Train | Regression | Violations | Gate |
-|---|---|---|---|---|---|
-| v1 | bootstrap from structure | 1/6 | 0/4 | 3 | — |
-| v5 | +tier1_check, +replan, energy belief 0.8 | 2/6 | 1/4 | 2 | rejected: cost (old step-count rule) |
-| **v8** | +tier1_check, +replan, energy belief 0.75, reserve 10% | **2/6** | **1/4** | **2** | **accepted** |
-| v14 | planner reads 2 past episodes | 2/6 | 1/4 | **30** | rejected: safety worse |
+**Held-out drone missions: 0/12 → 12/12, 0 safety violations, same planner model (Claude Haiku).**
 
-13 edits proposed, 1 accepted, 12 rejected. Prediction vs measured is stored per edit in `evaluations`.
-The search space is real: a hand-checked best plan inside the harness's own options solves **12/12**
-held-out drone missions; a naive plan solves 2/12. The current plateau is a planner rule (charge *after*
-pickup) the free evolution model has not found yet.
+Planner: Claude Haiku via Claude Code headless (`claude -p`), fixed for every row below.
+Evolution agent: Claude Sonnet via `claude -p`. Physics: v2 (no-fly ceiling at z=6, wind drain grows with altitude).
 
-Held-out missions are **not run yet** for any promoted version. Full matrix status: [docs/matrix.md](docs/matrix.md).
+| Version | Edit (by the evolution agent) | Train | Regression | Held-out | Violations | Gate |
+|---|---|---|---|---|---|---|
+| v1 | bootstrap from structure | 0/6 | 1/4 | **0/12** | 0 | — |
+| v8 | +tier1_check, +replan, energy belief 0.75, reserve 10% | 0/6 | 2/4 | 0/12 | 0 | accepted earlier |
+| v15 | rule: drone never uses ground moves | 2/6 | 3/4 | — | 3 | **rejected**: safety worse |
+| v16 | rule: shortest route avoiding no-fly | 2/6 | 1/4 | — | 2 | **rejected**: safety worse, regression |
+| **v17** | rule: drone cannot move on ground; use fly_to for every leg incl. charger | **5/6** | 2/4 | **12/12** | **0** | **accepted** |
+| v14 (earlier) | planner reads 2 past episodes | 2/6 | 1/4 | — | 30 | **rejected**: safety worse |
+
+The v1 harness failed because the planner, given only the body structure, emitted ground moves for a drone.
+The evolution agent read the action sequences of failed trials, wrote a body-specific rule, and the gate
+promoted it only after train improved with no new violations and no regression. Held-out missions were
+scored after acceptance and never used for selection.
+
+Earlier runs (free Nemotron planner, physics v1) are kept in Atlas for comparison: v1 1/6 → v8 2/6 train.
 
 ## Evaluation matrix
 
@@ -97,8 +104,8 @@ key and was not provisioned today, so memory runs on plain collections with the 
 verifier, renderer, mission matrix, harness schema, planner, runner, evolution agent, gate, memory,
 telemetry, reports.
 
-**Used:** MongoDB Atlas (sandbox cluster), OpenRouter free models (`nvidia/nemotron-3-super-120b-a12b:free`,
-`nvidia/nemotron-3-ultra-550b-a55b:free`), Raindrop (Python SDK), numpy, matplotlib, ffmpeg, pymongo.
+**Used:** MongoDB Atlas (sandbox cluster), Claude Haiku (planner) and Claude Sonnet (evolution agent) via Claude Code
+headless mode (`claude -p`), OpenRouter free models (earlier runs), Raindrop (Python SDK), numpy, matplotlib, ffmpeg, pymongo.
 Not used: MuJoCo, real robots, any training or fine-tuning.
 
 ## Run it
