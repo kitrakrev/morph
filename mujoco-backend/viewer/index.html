@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Morph Evidence Viewer</title>
+<style>
+  :root { --bg:#f7f6f2; --panel:#fff; --ink:#1d1d1f; --muted:#6b6b70; --line:#e3e1da; --ok:#2e7d32; --bad:#c62828;
+          --accent:#00684a; --side:#0f1f1a; --sideink:#d7e7df; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#121413; --panel:#1b1e1c; --ink:#ecece8;
+          --muted:#9a9c98; --line:#2c302d; --side:#0a1410; } }
+  * { box-sizing:border-box } body { margin:0; font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+          background:var(--bg); color:var(--ink); display:flex; min-height:100vh }
+  nav { width:230px; background:var(--side); color:var(--sideink); padding:18px 12px; position:sticky; top:0; height:100vh; flex-shrink:0 }
+  nav h1 { font-size:18px; margin:0 6px 2px; color:#fff } nav .tag { font-size:12px; margin:0 6px 16px; opacity:.75 }
+  nav a { display:block; padding:8px 10px; border-radius:7px; color:inherit; text-decoration:none; margin-bottom:2px; cursor:pointer }
+  nav a.on, nav a:hover { background:#1f3a30; color:#fff }
+  main { flex:1; padding:26px 32px; max-width:1200px; min-width:0 }
+  h2 { margin:0 0 6px; font-size:22px } .sub { color:var(--muted); margin:0 0 18px }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px 18px; margin-bottom:16px }
+  .big { font-size:34px; font-weight:700; color:var(--accent) }
+  table { border-collapse:collapse; width:100%; font-size:13px } th,td { text-align:left; padding:7px 8px; border-bottom:1px solid var(--line); vertical-align:top }
+  th { color:var(--muted); font-weight:600 } .ok { color:var(--ok); font-weight:600 } .bad { color:var(--bad); font-weight:600 }
+  .pill { display:inline-block; padding:1px 8px; border-radius:20px; font-size:12px; border:1px solid var(--line) }
+  .acc { background:#e6f4ea; color:var(--ok); border-color:#b7dfc2 } .rej { background:#fdecea; color:var(--bad); border-color:#f5c2bd }
+  .muted { color:var(--muted) } code, pre { font-family:ui-monospace,Menlo,monospace; font-size:12px }
+  pre { white-space:pre-wrap; background:var(--bg); padding:10px; border-radius:8px; border:1px solid var(--line); margin:6px 0 }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:16px } video { width:100%; border-radius:8px; border:1px solid var(--line) }
+  select { padding:5px; border-radius:6px } .feed div { padding:5px 0; border-bottom:1px solid var(--line); font-family:ui-monospace,Menlo,monospace; font-size:12px }
+  svg text { fill:var(--ink) }
+  .dg .box { fill:var(--panel); stroke:#8a8f8b; stroke-width:1.2 } .dg .fixed { fill:#eef1f6; stroke:#5b6b8c }
+  .dg .evo { fill:#e9f6ee; stroke:#2e7d32 } .dg .atlas { fill:#e7f3ee; stroke:#00684a; stroke-width:1.6 }
+  .dg .rd { fill:#eef0fb; stroke:#4b57c8 } .dg .gate { fill:#fff6e5; stroke:#c77700; stroke-width:1.6 }
+  .dg .lane { fill:none; stroke:var(--line); stroke-dasharray:4 4 } .dg .t { font-size:13px } .dg .s { font-size:11px; fill:var(--muted) }
+  .dg .h { font-size:13px; font-weight:700 } .dg .sec { font-size:11.5px; font-weight:700; letter-spacing:.06em; fill:var(--muted) }
+  .dg .num { fill:#00684a } .dg .note { font-size:11px; fill:var(--muted); font-style:italic }
+  .dg .card2 { fill:var(--panel); stroke:var(--line); stroke-width:1 } .dg .band { stroke:none }
+  .dg .ar2 { fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round } .dg .ar2.n { stroke:#7d847f }
+  .dg .ar2.ok { stroke:#2e7d32 } .dg .ar2.bad { stroke:#c62828; stroke-dasharray:6 4 }
+  .dg .pill { fill:var(--panel); stroke-width:1.2 } .dg .pill.ok { stroke:#2e7d32 } .dg .pill.bad { stroke:#c62828 } .dg .pill.n { stroke:#7d847f }
+  .dg .pl { font-size:10px; font-weight:600 } .dg .pl.ok { fill:#2e7d32 } .dg .pl.bad { fill:#c62828 }
+  .lg i { display:inline-block; width:12px; height:12px; border-radius:3px }
+  .legend { display:flex; gap:16px; flex-wrap:wrap; margin-bottom:8px; font-size:12px; color:var(--muted) } .lg { display:inline-flex; align-items:center; gap:6px } .dg .ar { stroke:#7a7f7b; stroke-width:1.4; fill:none; marker-end:url(#ah) }
+  .dg .arg { stroke:#2e7d32 } .dg .arr { stroke:#c62828; stroke-dasharray:5 3 } .dg .lbl { font-size:10px; fill:var(--muted) }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .dg .fixed { fill:#1e2533 } :root:not([data-theme="light"]) .dg .evo { fill:#16291d }
+    :root:not([data-theme="light"]) .dg .atlas { fill:#12281f } :root:not([data-theme="light"]) .dg .rd { fill:#1b1e33 } :root:not([data-theme="light"]) .dg .gate { fill:#2e2414 } }
+  @media (max-width:800px) { body { flex-direction:column } nav { width:100%; height:auto; position:static } .grid2 { grid-template-columns:1fr } main { padding:16px } }
+</style>
+</head>
+<body>
+<nav>
+  <h1>Morph</h1><div class="tag">the fleet that learns new bodies</div>
+  <div style="margin:0 6px 14px"><label class="tag" for="bsel">robot body</label><br><select id="bsel" style="width:100%"></select></div>
+  <a data-p="overview">Overview</a><a data-p="how">How it works</a><a data-p="results">Results</a><a data-p="lineage">Lineage &amp; edits</a>
+  <a data-p="workflow">Workflow graph</a><a data-p="replays">Replays</a><a data-p="runs">Runs</a>
+  <a data-p="evolves">What evolves</a><a data-p="matrix">Evaluation matrix</a><a data-p="feed">Live feed</a>
+  <a data-p="stack">Built on</a><a href="deck.html" style="color:#9fe0c0">Pitch deck ↗</a><a data-p="scope">Scope &amp; limits</a>
+</nav>
+<main id="main"></main>
+<script>
+const STATIC = !/^(localhost|127\.0\.0\.1)/.test(location.hostname);
+const staticPath = p => { const u = new URL(p, "http://x"), q = u.searchParams, name = u.pathname.replace("/api/", "");
+  const b = q.get("body"), sfx = b && b !== "drone" && name !== "bodies" ? "-" + b : "";
+  return "data/" + name + sfx + (q.get("version") ? "-" + q.get("version") : "") + ".json"; };
+const $ = s => document.querySelector(s), api = p => fetch(STATIC ? staticPath(p) : p).then(r => r.json());
+const vid = n => (STATIC ? "out/" : "/out/") + n;
+const esc = s => String(s ?? "").replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+const frac = x => x ? `${x.ok}/${x.n}` : "—";
+let feedTimer, BODY = new URLSearchParams(location.search).get("body") || "drone";
+
+const pages = {
+ async overview() {
+  const rows = (await api("/api/results")).filter(r => r.era === "current");
+  const v = n => rows.find(r => r.version === n);
+  const h1 = v(1)?.splits?.heldout, hb = rows.filter(r => r.splits.heldout && r.verdict === "accepted").pop();
+  return `<h2>Plug in a robot. The harness does the rest.</h2>
+  <p class="sub">Robot fleets change bodies. Morph's harness rewrites its own rules, limits and workflow from its own failures, and keeps a change only when a locked verifier proves it on missions the agent never saw. The model never changes.</p>
+  <div class="card"><div class="muted">Held-out drone missions, same planner model (Claude Haiku)</div>
+   <div class="big">${frac(h1)} → ${frac(hb?.splits?.heldout)}</div>
+   <div>v1 (bootstrap from structure) → v${hb?.version ?? "?"} (evolved) · violations: <b>${hb?.splits?.heldout?.viol ?? "—"}</b> · n = ${hb?.splits?.heldout?.n ?? "—"} held-out missions on unseen maps</div>
+   ${hb?.splits?.["heldout:hard"] ? `<div class="muted" style="margin-top:6px">Reported separately — hard tier (long-range loaded missions, never tuned on): v${hb.version} ${frac(hb.splits["heldout:hard"])} held-out, ${hb.splits["heldout:hard"].viol} violations.</div>` : ""}</div>
+  <div class="card"><b>The loop</b><pre>mission → planner (fixed model) → workflow graph → simulate (true physics) → locked verifier
+   → Raindrop signal + Atlas failure memory → evolution agent proposes ONE bounded edit + prediction
+   → gate: train ↑, safety not worse, no regression, cost per success → new version (transaction) → repeat</pre></div>
+  <div class="card"><b>Every attempt, with the harness it ran</b> — map on the left; inputs and the live harness parameters on the right, changed fields highlighted, then the result and the gate's verdict<br><br>
+   <video src="${vid("attempts-with-params.mp4")}" controls muted preload="metadata"></video></div>
+  <div class="card"><b>Hero clip</b> — held-out mission heldout-drone-903 (original set), same model, harness v1 vs v17<br><br>
+   <video src="${vid("pair-heldout-drone-903-v1-v17.mp4")}" controls autoplay muted loop></video></div>`;
+ },
+
+ async how() {
+  const W = 168, H = 86, G = 48, X = i => 40 + i * (W + G), R = X(5) + W;
+  const ACC = {fixed:"#5b6b8c", evo:"#2e7d32", gate:"#c77700", atlas:"#00684a", rd:"#4b57c8", "":"#8a8f8b"};
+  const B = (x, y, cls, title, lines, w = W, h = H) => `<g filter="url(#sh)">
+    <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="10" class="card2"/>
+    <rect x="${x}" y="${y}" width="5" height="${h}" rx="2" fill="${ACC[cls]}"/></g>
+    <text x="${x + 18}" y="${y + 26}" class="t"><tspan font-weight="650">${title}</tspan></text>` +
+    lines.map((l, i) => `<text x="${x + 18}" y="${y + 46 + i * 15}" class="s">${l}</text>`).join("");
+  // orthogonal path with rounded corners through points
+  const P = pts => { let d = `M${pts[0][0]},${pts[0][1]}`; const r = 10;
+    for (let i = 1; i < pts.length - 1; i++) { const [ax, ay] = pts[i - 1], [bx, by] = pts[i], [cx, cy] = pts[i + 1];
+      const d1 = Math.min(r, Math.hypot(bx - ax, by - ay) / 2), d2 = Math.min(r, Math.hypot(cx - bx, cy - by) / 2);
+      const ux = Math.sign(bx - ax), uy = Math.sign(by - ay), vx = Math.sign(cx - bx), vy = Math.sign(cy - by);
+      d += ` L${bx - ux * d1},${by - uy * d1} Q${bx},${by} ${bx + vx * d2},${by + vy * d2}`; }
+    const [lx, ly] = pts[pts.length - 1]; return d + ` L${lx},${ly}`; };
+  const A = (pts, kind = "n") => `<path d="${P(pts)}" class="ar2 ${kind}" marker-end="url(#ah-${kind})"/>`;
+  const L = (x, y, txt, kind = "n") => { const w = txt.length * 6 + 14;
+    return `<g><rect x="${x - w / 2}" y="${y - 11}" width="${w}" height="20" rx="10" class="pill ${kind}"/><text x="${x}" y="${y + 3}" text-anchor="middle" class="pl ${kind}">${txt}</text></g>`; };
+  const Hd = (y, n, txt) => `<text x="${R + 4}" y="${y}" text-anchor="end" class="sec"><tspan class="num">${n}</tspan>  ${txt}</text>`;
+  const Band = (y, h, tint) => `<rect x="12" y="${y}" width="${R + 4}" height="${h}" rx="14" fill="${tint}" class="band"/>`;
+  const y0 = 46, y1 = 186, yR = 300, yD = 430, y2 = 582, yN = 708, cy1 = y1 + H / 2, cy2 = y2 + H / 2;
+  const mk = (id, c) => `<marker id="ah-${id}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${c}"/></marker>`;
+  const svg = `<svg class="dg" viewBox="0 0 ${R + 28} 800" width="100%" role="img" aria-label="Morph system diagram">
+   <defs>${mk("n", "#7d847f")}${mk("ok", "#2e7d32")}${mk("bad", "#c62828")}
+     <filter id="sh" x="-5%" y="-5%" width="110%" height="120%"><feDropShadow dx="0" dy="1.5" stdDeviation="2" flood-opacity="0.12"/></filter></defs>
+   ${Band(14, 112, "rgba(120,120,120,0.04)")}${Band(140, 262, "rgba(46,125,50,0.05)")}${Band(416, 112, "rgba(0,104,74,0.05)")}${Band(540, 246, "rgba(199,119,0,0.05)")}
+   ${Hd(36, "0", "INPUT — the only thing a user supplies")}
+   ${B(X(0), y0, "", "Robot spec", ["structure · terrain · goal"], W, 64)}
+   ${A([[X(0) + W, y0 + 32], [X(1) - 3, y0 + 32]])}
+   ${B(X(1), y0, "", "Bootstrap", ["structure → harness v1"], W, 64)}
+   ${A([[X(1) + W / 2, y0 + 64], [X(1) + W / 2, y1 - 22], [X(0) + W / 2, y1 - 22], [X(0) + W / 2, y1 - 3]])}
+
+   ${Hd(162, "1", "LOOP 1 — RUN MISSIONS  ·  fixed code executes the harness's own workflow graph")}
+   ${B(X(0), y1, "evo", "Harness vN", ["evolvable data in Atlas", "workflow · rules · beliefs"])}
+   ${A([[X(0) + W, cy1], [X(1) - 3, cy1]])}
+   ${B(X(1), y1, "", "Planner", ["Claude Haiku · fixed", "1 plan template / version"])}
+   ${A([[X(1) + W, cy1], [X(2) - 3, cy1]])}
+   ${B(X(2), y1, "evo", "tier1_check", ["fast feasibility (<1 s)", "uses harness beliefs"])}
+   ${A([[X(2) + W, cy1], [X(3) - 3, cy1]], "ok")}${L(X(2) + W + G / 2, cy1 - 18, "pass", "ok")}
+   ${B(X(3), y1, "fixed", "tier2_sim  🔒", ["true physics", "energy · altitude · wind"])}
+   ${A([[X(3) + W, cy1], [X(4) - 3, cy1]])}
+   ${B(X(4), y1, "fixed", "Verifier  🔒", ["delivered? violations?", "reserve · deadline"])}
+   ${A([[X(4) + W, cy1], [X(5) - 3, cy1]])}
+   ${B(X(5), y1, "rd", "Raindrop", ["event per trial", "failure signals"])}
+   ${A([[X(2) + W / 2, y1 + H], [X(2) + W / 2, yR - 3]], "bad")}${L(X(2) + W / 2, y1 + H + 18, "fail", "bad")}
+   ${B(X(2), yR, "evo", "replan", ["switch to fallback program"], W, 60)}
+   ${A([[X(2) + W, yR + 30], [X(3) + W / 2, yR + 30], [X(3) + W / 2, y1 + H + 3]], "ok")}
+   <text x="${X(5)}" y="${yR + 26}" class="note">tier1_check + replan were</text>
+   <text x="${X(5)}" y="${yR + 42}" class="note">added by evolution (v8)</text>
+
+   ${Hd(438, "2", "DATA — MongoDB Atlas")}
+   ${A([[X(4) + W / 2, y1 + H], [X(4) + W / 2, 270], [X(4) + W / 2, yD + 18 - 3]])}
+   ${B(X(1), yD + 18, "atlas", "MongoDB Atlas", ["trials · failures (autoEmbed, Voyage) · time-series metrics · checkpoints · Agent Engine memory",
+      "harness lineage (unique version index) · evaluations · held-out outcomes never reach agent-readable memory"], R - X(1), 70)}
+
+   <text x="${X(0)}" y="562" class="sec"><tspan class="num">3</tspan>  LOOP 2 — EVOLVE THE HARNESS  ·  reads right → left</text>
+   ${A([[X(5) + W / 2, yD + 88], [X(5) + W / 2, y2 - 3]])}
+   ${B(X(5), y2, "atlas", "Evidence", ["$rankFusion over failures", "+ Raindrop signals"])}
+   ${A([[X(5), cy2], [X(4) + W + 3, cy2]])}
+   ${B(X(4), y2, "", "Evolution agent", ["Claude Sonnet", "ONE edit + prediction"])}
+   ${A([[X(4), cy2], [X(3) + W + 3, cy2]])}
+   ${B(X(3), y2, "evo", "Candidate vN+1", ["legality check:", "locked fields, primitives"])}
+   ${A([[X(3), cy2], [X(2) + W + 3, cy2]])}
+   ${B(X(2), y2, "", "Re-run Loop 1", ["train + regression", "same planner model"])}
+   ${A([[X(2), cy2], [X(1) + W + 3, cy2]])}
+   ${B(X(1), y2, "gate", "Gate  🔒", ["train ↑ · safety not worse", "no regression · cost"])}
+   ${A([[X(1), cy2], [X(0) + W + 3, cy2]], "ok")}${L(X(1) - G / 2, cy2 - 18, "accept", "ok")}
+   ${B(X(0), y2, "evo", "Promote", ["one Atlas transaction", "becomes harness vN"])}
+   ${A([[X(0), cy2], [18, cy2], [18, cy1], [X(0) - 3, cy1]], "ok")}
+   ${L(62, (cy1 + cy2) / 2 + 40, "new vN", "ok")}
+   ${A([[X(1) + W / 2, y2 + H], [X(1) + W / 2, yN - 3]], "bad")}${L(X(1) + W / 2, y2 + H + 18, "reject", "bad")}
+   ${B(X(1), yN, "", "Rejected · logged", ["v14: 30 no-fly violations", "the agent sees why next round"], W + 40, 66)}
+   ${B(X(3), yN, "fixed", "Held-out scoring  🔒", ["after acceptance only · never used for selection",
+      "drone v1 0/12 → v17 12/12 (n=12), 0 violations"], R - X(3), 66)}
+  </svg>`;
+  const legend = [["fixed","fixed code 🔒"],["evo","evolvable harness data"],["gate","gate 🔒"],["atlas","MongoDB Atlas"],["rd","Raindrop"]]
+    .map(([c,l]) => `<span class="lg"><i style="background:${ACC[c]}"></i>${l}</span>`).join("") +
+    `<span class="lg"><svg width="28" height="10"><path d="M1,5 L22,5" stroke="#2e7d32" stroke-width="2"/><path d="M20,1 L27,5 L20,9z" fill="#2e7d32"/></svg>pass / accept</span>` +
+    `<span class="lg"><svg width="28" height="10"><path d="M1,5 L22,5" stroke="#c62828" stroke-width="2" stroke-dasharray="4 3"/><path d="M20,1 L27,5 L20,9z" fill="#c62828"/></svg>fail / reject</span>`;
+  return `<h2>How it works</h2><p class="sub">One cycle: Loop 1 runs missions with the current harness; Loop 2 proposes one edit, re-runs, and the gate decides. The model never changes.</p>
+   <div class="card"><div class="legend">${legend}</div>${svg}</div>
+   <div class="card"><b>Why this is harness learning, not prompt tuning:</b> accepted edits changed the <i>workflow graph</i> (a feasibility check and a replan branch to a safer fallback, v8), the harness's <i>beliefs</i> and <i>budgets</i>, and body-specific <i>rules</i> (v17). The model, physics and verifier never change.</div>`;
+ },
+ async results() {
+  const rows = await api(`/api/results?body=${BODY}`);
+  const WHY = {train_improves: "did not deliver more train missions than its parent", safety_not_worse: "added safety violations",
+    no_regression: "broke missions the parent already passed", cost_ok: "used more tool calls per delivery",
+    valid_eval: "too many failed tool calls to trust the run", legal_edit: "tried to change a locked field"};
+  const explain = r => {
+    if (r.verdict === "bootstrap") return "Starting harness derived from the robot's structure only.";
+    const failed = Object.entries(r.checks || {}).filter(([k, v]) => !v).map(([k]) => WHY[k] || k);
+    const verdict = r.verdict === "accepted" ? "<span class='ok'>Kept:</span> passed every gate check."
+      : `<span class='bad'>Blocked:</span> ${failed.join("; ") || esc(r.reason || "")}.`;
+    return `${verdict}${r.rationale ? `<div class="muted">Agent's reason: ${esc(r.rationale)}</div>` : ""}`; };
+  const pm = r => r.prediction ? `${r.prediction.train_success_delta >= 0 ? "+" : ""}${r.prediction.train_success_delta} / ${r.measured?.train_success_delta >= 0 ? "+" : ""}${r.measured?.train_success_delta ?? "?"}` : "";
+  const tr = r => `<tr><td>v${r.version}</td><td>${r.verdict === "accepted" ? '<span class="pill acc">accepted</span>' : r.verdict === "rejected" ? '<span class="pill rej">rejected</span>' : esc(r.verdict)}</td>
+   <td>${esc(r.fields.join(", "))}</td><td>${frac(r.splits.train)}</td><td>${frac(r.splits.regression)}</td><td><b>${frac(r.splits.heldout)}</b></td>
+   <td>${frac(r.splits["heldout:hard"])}</td><td>${["train","regression","heldout"].reduce((a,s)=>a+(r.splits[s]?.viol||0),0)}</td><td>${pm(r)}</td><td style="max-width:420px">${explain(r)}</td></tr>`;
+  const head = `<tr><th>ver</th><th>verdict</th><th>edited</th><th>train</th><th>regr.</th><th>held-out (n=12)</th><th>hard tier held-out</th><th>viol. (original sets)</th><th>predicted / measured Δtrain</th><th>what happened</th></tr>`;
+  const cur = rows.filter(r => r.era === "current"), old = rows.filter(r => r.era !== "current");
+  const nRej = rows.filter(r => r.verdict === "rejected").length, nAcc = rows.filter(r => r.verdict === "accepted").length;
+  return `<h2>Results — ${BODY}</h2><p class="sub">Latest run per mission. Every score shows k/n. Held-out is scored after acceptance and never used for selection.</p>
+   <div class="card"><b>Why so many rejections?</b> ${nAcc} accepted, ${nRej} rejected. That ratio is the point: the evolution agent may propose anything legal, and the gate keeps only edits that deliver more missions with no new violations and no regression. Most rejected edits only nudged the harness's energy beliefs, which changed nothing on the missions (Δtrain = 0), or traded deliveries for violations (v14: planner read past episodes and flew through the no-fly zone 30 times; v19: raised the minimum altitude and added violations). A rejection costs one evaluation; a bad promotion would cost real missions.</div>
+   <div class="card"><b>Current run</b> (planner Claude Haiku, evolution Claude Sonnet, physics v2)<table>${head}${cur.map(tr).join("")}</table></div>
+   ${old.length ? `<div class="card"><b>Earlier run</b> (free Nemotron planner, physics v1) — kept for comparison; scores here are not comparable with the current run<table>${head}${old.map(tr).join("")}</table></div>` : ""}`;
+ },
+ async lineage() {
+  const only = (new URLSearchParams(location.search).get("v") || "").split(",").filter(Boolean).map(Number);
+  const L = (await api(`/api/lineage?body=${BODY}`)).filter(h => !only.length || only.includes(h.version));
+  return `<h2>Lineage &amp; edits</h2><p class="sub">Every candidate the evolution agent proposed, its diff, the gate's checks, and the failures it retrieved from Atlas ($rankFusion).</p>` +
+   L.map(h => `<div class="card"><b>v${h.version}</b> ← v${h.parent ?? "—"} &nbsp; ${h.verdict === "accepted" ? '<span class="pill acc">accepted</span>' : h.verdict === "rejected" ? '<span class="pill rej">rejected</span>' : `<span class="pill">${esc(h.verdict)}</span>`}
+    <span class="muted">${esc(h.model || "")}</span>
+    ${h.rationale ? `<p>${esc(h.rationale)}</p>` : ""}
+    ${(Array.isArray(h.diff) ? h.diff : h.diff ? [h.diff] : []).map(d => `<pre><b>${esc(d.field)}</b>\n- ${esc(JSON.stringify(d.old))}\n+ ${esc(JSON.stringify(d.new))}</pre>`).join("")}
+    ${h.reason ? `<div>Gate: <span class="${h.verdict==="accepted"?"ok":"bad"}">${esc(h.reason)}</span> ${h.checks ? "· " + Object.entries(h.checks).map(([k,v]) => `${v?"✓":"✗"} ${k}`).join(" · ") : ""}</div>` : ""}
+    ${h.retrieved?.length ? `<details><summary class="muted">retrieved similar failures (${h.retrieved.length})</summary><pre>${h.retrieved.map(esc).join("\n")}</pre></details>` : ""}</div>`).join("");
+ },
+ async workflow() {
+  const L = await api(`/api/lineage?body=${BODY}`);
+  const opts = L.map(h => `<option value="${h.version}" ${h.version===17?"selected":""}>v${h.version} (${h.verdict})</option>`).join("");
+  const detail = async h => { const T = await api(`/api/templates?body=${BODY}&version=${h.version}`);
+    return graph(h, L[0]) + `<div class="muted" style="margin:6px 0">budgets: ${esc(JSON.stringify(h.budgets || {}))}</div>` +
+      (T.primary ? `<div><b>primary program</b> (example mission)</div><pre>${esc(T.primary.join("\n"))}</pre>` : "") +
+      (T.fallback ? `<div><b>fallback program</b> — used when tier1_check fails</div><pre>${esc(T.fallback.join("\n"))}</pre>` : "") +
+      `<div><b>rules</b></div><pre>${esc((h.rules||[]).join("\n"))}</pre>`; };
+  setTimeout(async () => { $("#wleft").innerHTML = await detail(L[0]); const s = $("#wsel");
+    const draw = async () => { $("#wright").innerHTML = await detail(L.find(x => x.version == s.value)); }; s.onchange = draw; draw(); });
+  return `<h2>Workflow graph</h2><p class="sub">The step graph is data the harness evolves. New steps are highlighted.</p>
+   <div class="grid2"><div class="card"><b>v1 (bootstrap)</b><div id="wleft"></div></div>
+   <div class="card"><b>compare</b> <select id="wsel">${opts}</select><div id="wright"></div></div></div>`;
+ },
+ async replays() {
+  const vids = (await api("/api/videos")).filter(v => v.startsWith("pair-") || v.startsWith("evolution-") || v.startsWith("attempts-")).sort((a, b) => (b.startsWith("attempts-with") * 3 + b.startsWith("attempts-side") * 2 + b.startsWith("evolution-")) - (a.startsWith("attempts-with") * 3 + a.startsWith("attempts-side") * 2 + a.startsWith("evolution-")));
+  return `<h2>Replays</h2><p class="sub">Same mission, same planner model, two harness versions, synced on simulation time. Battery bar turns red under the reserve line; altitude strip below.</p>` +
+   vids.map(v => `<div class="card"><b>${esc(v)}</b><br><br><video src="${vid(v)}" controls muted preload="metadata"></video></div>`).join("");
+ },
+ async runs() {
+  const T = await api(`/api/trials?body=${BODY}`);
+  return `<h2>Runs — ${BODY}</h2><p class="sub">Each trial: the program the planner produced, the verifier's verdict, and the diagnosis stored in Atlas.</p>
+   <div class="card"><table><tr><th>mission</th><th>set</th><th>split</th><th>result</th><th>energy Wh</th><th>violations</th><th>actions</th><th>diagnosis</th></tr>
+   ${T.map(t => `<tr><td>${esc(t.mission)}</td><td>${esc(t.set)}</td><td>${t.split}</td><td class="${t.ok?"ok":"bad"}">${t.ok?"delivered":"failed"}</td><td>${t.energy}</td><td>${t.viol}</td><td><code>${esc(t.actions)}</code></td><td class="muted">${esc(t.diagnosis)}</td></tr>`).join("")}</table></div>`;
+ },
+ async evolves() {
+  const L = await api(`/api/lineage?body=${BODY}`), changed = {};
+  L.forEach(h => (Array.isArray(h.diff) ? h.diff : h.diff ? [h.diff] : []).forEach(d => (changed[d.field] ||= []).push(`v${h.version}${h.verdict==="accepted"?"✓":"✗"}`)));
+  const F = [["workflow","step graph the engine runs (plan, tier1_check, replan, tier2_sim, verify)"],["rules","plain-language rules the planner must follow"],
+   ["constraints","hard limits (payload, altitude); nofly + collision locked to hard"],["tool_specs","per-tool parameter bounds, e.g. fly_to alt range, avoid_nofly"],
+   ["beliefs","the harness's own energy model and reserve (not the true physics)"],["reports_read","diagnostics the planner sees"],
+   ["retrieval_policy","how many episodes / procedures from memory"],["model_routing","which model tier plans"],["budgets","replans, tool calls, tier2 runs"],["skills","composed skills built from primitives"]];
+  return `<h2>What evolves</h2><p class="sub">Exactly the fields in <code>engine/harness.py: EDITABLE</code>. ✓ = accepted, ✗ = rejected.</p>
+   <div class="card"><table><tr><th>field</th><th>controls</th><th>changed in</th></tr>${F.map(([f,d]) => `<tr><td><code>${f}</code></td><td>${d}</td><td>${(changed[f]||["—"]).join(" ")}</td></tr>`).join("")}</table></div>
+   <div class="card"><b>Never changeable:</b> simulator and true physics, verifier, scoring, primitive list, held-out data, locked constraints (no-fly hard, collisions forbidden). Edit budget per candidate: 3 fields at v1–v2, 2 at v3–v4, then 1.</div>`;
+ },
+ async matrix() {
+  const m = await api("/api/matrix");
+  const rows = m.md.split("\n").filter(l => l.startsWith("|") && !l.startsWith("|---"));
+  const tbl = rows.map((r, i) => "<tr>" + r.split("|").slice(1, -1).map(c => i % 1 === 0 && (rows[0] === r || r.startsWith("| body")) ? `<th>${esc(c.trim())}</th>` : `<td>${c.trim().replace(/\*\*(.*?)\*\*/g,"<b>$1</b>")}</td>`).join("") + "</tr>").join("");
+  return `<h2>Evaluation matrix</h2><p class="sub">Bodies × terrain difficulty × mission type. Cells not run today say so.</p><div class="card"><table>${tbl}</table></div>`;
+ },
+ async feed() {
+  const draw = async () => { const F = await api("/api/feed"); const el = $("#feedl"); if (el) el.innerHTML = F.length ? F.map(e => `<div>${e.ts} · <b>${esc(e.coll)}</b> · ${esc(e.msg)}</div>`).join("") : '<div class="muted">waiting for changes… run the engine: PYTHONPATH=. uv run python -m engine.loop drone --gens 1</div>'; };
+  if (STATIC) return `<h2>Live feed</h2><div class="card">The live feed streams Atlas change events and runs only on the local viewer (<code>viewer/server.py</code>). This page is a static snapshot.</div>`;
+  feedTimer = setInterval(draw, 2000); setTimeout(draw);
+  return `<h2>Live feed</h2><p class="sub">Atlas change stream on trials, harnesses and evaluations. Start a generation on the laptop and watch it land here.</p><div class="card feed" id="feedl"></div>`;
+ },
+ async stack() {
+  return `<h2>Built on</h2><div class="card"><table><tr><th>sponsor / tool</th><th>how Morph uses it</th></tr>
+   <tr><td>MongoDB Atlas</td><td>versioned harness lineage (unique index), trials, transaction on promotion, autoEmbed (voyage-4-lite) vector + keyword indexes on failures, $rankFusion hybrid retrieval, time-series metrics, checkpoints for resume, change streams (this viewer), LLM response cache</td></tr>
+   <tr><td>Atlas Agent Engine</td><td>hosted memory server (semantic / episodic / procedural / taxonomic) via <code>agent-engine-sdk-memory</code> and a service account; mission episodes stored there; Atlas-collection fallback if unreachable</td></tr>
+   <tr><td>Raindrop</td><td>one <code>mission_trial</code> event per trial with signals battery_death, nofly_violation, payload_violation, reserve_breach, delivered; one event per planner / evolution LLM call</td></tr>
+   <tr><td>Claude (Claude Code headless)</td><td>planner = Haiku (fixed all day), evolution agent = Sonnet; cached in Atlas</td></tr></table></div>`;
+ },
+ async scope() {
+  return `<h2>Scope &amp; limits</h2><div class="card"><ul>
+   <li><b>Planning layer only</b> — assumes each body has its own low-level controller.</li>
+   <li><b>Known movement vocabulary</b> — wheels, legs, rotors, tracks, rail; unknown locomotion is refused at bootstrap.</li>
+   <li><b>Simplified simulated physics</b> — no sim-to-real claim.</li><li><b>Static, known maps.</b></li>
+   <li><b>Measured only on tested missions</b> — every score has its n.</li><li><b>Fixed planner model</b> — Claude Haiku.</li>
+   <li><b>Single robot per mission</b> — relay is generated, not planned.</li></ul>
+   <p>The harness can expand <i>what it does</i>, never <i>how it is judged</i>.</p></div>`;
+ },
+};
+
+function graph(h, base) {
+  const nodes = h?.workflow?.nodes || [], baseN = new Set(base?.workflow?.nodes || []);
+  const main = nodes.filter(n => n !== "replan"), hasReplan = nodes.includes("replan");
+  const W = 118, gap = 30, w = main.length * (W + gap);
+  const xOf = n => main.indexOf(n) * (W + gap);
+  let svg = `<svg viewBox="0 0 ${Math.max(w, 320)} ${hasReplan ? 150 : 80}" width="100%" role="img" aria-label="workflow graph">
+   <defs><marker id="a" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7" fill="#888"/></marker></defs>`;
+  main.forEach((n, i) => { const x = xOf(n), added = !baseN.has(n);
+    svg += `<rect x="${x}" y="15" width="${W}" height="40" rx="8" fill="${added ? "#e6f4ea" : "none"}" stroke="${added ? "#2e7d32" : "#999"}" stroke-width="${added ? 2 : 1}"/>
+      <text x="${x + W / 2}" y="40" text-anchor="middle" font-size="13">${n}</text>`;
+    if (i < main.length - 1) { const lbl = n === "tier1_check" ? "pass" : "";
+      svg += `<line x1="${x + W}" y1="35" x2="${x + W + gap - 2}" y2="35" stroke="#888" marker-end="url(#a)"/>` +
+        (lbl ? `<text x="${x + W + 4}" y="29" font-size="10" fill="#2e7d32">${lbl}</text>` : ""); } });
+  if (hasReplan && main.includes("tier1_check")) { const t1 = xOf("tier1_check"), t2 = xOf("tier2_sim"), rx = t1 + 20;
+    svg += `<rect x="${rx}" y="95" width="${W}" height="38" rx="8" fill="#e6f4ea" stroke="#2e7d32" stroke-width="2"/>
+      <text x="${rx + W / 2}" y="119" text-anchor="middle" font-size="13">replan</text>
+      <path d="M${t1 + W / 2},55 L${t1 + W / 2},95" stroke="#c62828" stroke-dasharray="4 3" fill="none" marker-end="url(#a)"/>
+      <text x="${t1 + W / 2 + 4}" y="78" font-size="10" fill="#c62828">fail → fallback program</text>
+      <path d="M${rx + W},114 L${t2 + W / 2},114 L${t2 + W / 2},57" stroke="#2e7d32" fill="none" marker-end="url(#a)"/>`; }
+  return svg + `</svg>`;
+}
+
+async function go(p) {
+  clearInterval(feedTimer);
+  document.querySelectorAll("nav a").forEach(a => a.classList.toggle("on", a.dataset.p === p));
+  $("#main").innerHTML = '<p class="muted">loading…</p>';
+  try { $("#main").innerHTML = await pages[p](); } catch (e) { $("#main").innerHTML = `<p class="bad">${esc(e)}</p>`; }
+  history.replaceState(null, "", "#" + p);
+}
+document.querySelectorAll("nav a[data-p]").forEach(a => a.onclick = () => go(a.dataset.p));
+api("/api/bodies").then(B => { const sel = $("#bsel"); sel.innerHTML = B.map(b => `<option ${b === BODY ? "selected" : ""}>${b}</option>`).join("");
+  sel.onchange = () => { BODY = sel.value; const p = location.hash.slice(1) || "overview"; history.replaceState(null, "", `?body=${BODY}#${p}`); go(p); }; }).catch(() => {});
+go(location.hash.slice(1) || "overview");
+</script>
+</body>
+</html>

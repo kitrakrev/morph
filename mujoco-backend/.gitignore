@@ -1,0 +1,5 @@
+.env
+out/
+sim/assets/menagerie/
+MUJOCO_LOG.TXT
+.venv/

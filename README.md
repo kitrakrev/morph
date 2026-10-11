@@ -26,7 +26,7 @@ persistent Atlas memory and checkpoint/resume.
 |---|---|
 | `simple-backend/` | **Simple backend** (this README's results): grid simulator, harness engine, evolution loop, gate, Atlas/Agent Engine memory, Raindrop telemetry, viewer, scripts |
 | `docs/` | GitHub Pages site (evidence viewer snapshot, deck, videos) |
-| other backends | e.g. the MuJoCo 3D backend shown in the viewer is a separate backend; its code lives in its own folder |
+| `mujoco-backend/` | **MuJoCo backend**: same harness + evolution loop on rigid-body MuJoCo physics for every body; real robot models (Skydio X2, Unitree Go2/G1/H1, Spot, ANYmal) from MuJoCo Menagerie; any robot from a model file, any map (ASCII/JSON/PNG, 1-3D), composable goals (deliver, visit, inspect, patrol, survey, avoid, return_home) via `specs/*.json`; 3D videos; multimodal failure memory in `$rankFusion`. Run from inside the folder: `cd mujoco-backend && scripts/fetch_menagerie.sh && PYTHONPATH=. uv run python -m engine.loop --spec specs/go2-plant-inspection.json` (see `mujoco-backend/README.md`) |
 
 Run everything from the repo root with `PYTHONPATH=simple-backend`.
 
