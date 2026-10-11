@@ -47,6 +47,9 @@ def plan_template(h: dict, body: dict, terrain_summary: dict | None = None) -> d
                        "memory": context(h, body.get("kind", "?")), "symbols": SYMBOLS})
     out = llm.chat_json(SYSTEM, user, tier=h.get("model_routing", {}).get("plan", "cheap"))
     tpl = out["json"]
+    if not out.get("_cached"):
+        from engine import telemetry
+        telemetry.llm_event("planner", out["model"], SYSTEM, user, tpl, body.get("kind", "?"), h.get("version"))
     return {"primary": tpl.get("primary", []), "fallback": tpl.get("fallback") or tpl.get("primary", []),
             "rationale": tpl.get("rationale", ""), "model": out["model"], "cached": out.get("_cached", False)}
 

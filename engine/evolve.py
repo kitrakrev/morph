@@ -59,5 +59,8 @@ def propose(parent: dict, parent_eval: dict, rejected: list[dict]) -> dict:
     out = llm.chat_json(SYSTEM.replace("EDIT_BUDGET", str(edit_budget(parent["version"]))), user,
                         tier="strong", max_tokens=2500)
     edit = out["json"]
+    if not out.get("_cached"):
+        from engine import telemetry
+        telemetry.llm_event("evolution", out["model"], SYSTEM, user, edit, parent["body_type"], parent["version"])
     edit["model"], edit["retrieved"] = out["model"], past
     return edit

@@ -90,7 +90,7 @@ def run_mission(h: dict, template: dict, mission: dict, run_id: str | None = Non
             content=f"{'SUCCESS' if score['success'] else 'FAIL'} {h['body_type']} carrying "
                     f"{mission['goal']['deliver']['weight_kg']}kg: {diagnosis or 'delivered safely'}",
             version=h["version"], mission_id=mission["id"])
-    telemetry.trial_event(trial)
+    telemetry.trial_event(trial, model=template.get("model"))
     db().checkpoints.delete_one({"run_id": run_id})
     trial["_sim"] = sim
     return trial
