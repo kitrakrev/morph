@@ -82,6 +82,34 @@ agent-readable memory. Rail cart multi-stop and relay cells are short (a single 
 Target numbers for the pitch: held-out success per body; **generations to adapt per body, falling as
 lessons transfer**; safety violations on promoted versions.
 
+## Scope and limitations
+
+What Morph claims, narrowly: for **high-level mission planning** of robots built from a known movement
+vocabulary (wheels, legs, rotors, tracks, rail) on a known grid map, Morph adapts the harness to a new body
+without retraining, and never promotes a change that adds safety violations **on the tested missions**.
+
+- **Planning layer only.** Morph decides where to go, when to charge, what to carry. It does not control
+  motors, balance or gaits; it assumes each body has a working low-level controller.
+- **Known movement vocabulary.** Bootstrap refuses a body whose locomotion is outside
+  `{wheels, legs, rotors, tracks, rail}` and says why, instead of guessing.
+- **Simplified simulated physics.** Energy, speed and terrain costs are models. No sim-to-real claim.
+- **Static, known maps.** No moving obstacles, people or sensor noise.
+- **Measured only on what we tested.** Every score is reported with its n (e.g. held-out 12/12, n=12, one
+  body). "No new violations" holds on those missions; it is not a safety guarantee.
+- **Fixed planner model.** Results are for Claude Haiku as planner; another model needs re-evaluation.
+- **Single robot per mission.** Fleet relay is generated in the matrix but not planned for yet.
+
+### How the harness may expand (tiered by risk)
+
+| Tier | What the harness may add | Approval | Status today |
+|---|---|---|---|
+| 1. Automatic | rules, constraints, budgets, retrieval policy, workflow steps, reports, composed skills from primitives, corrected beliefs | the gate alone | **built** |
+| 2. Sandboxed | new capability as code (skill function, report generator, mode plugin for an unseen locomotion), tested in sim | gate + stricter suite, held as candidate | next |
+| 3. Human ask | anything that expands authority: new zone type allowed, limit above spec, new primitive for a body, loosened constraint | stored ask, human approves once, decision remembered | next |
+
+Locked forever: the verifier, the true physics, scoring and held-out data. **The harness can expand what it
+does, never how it is judged.**
+
 ## MongoDB Atlas features used
 
 | Feature | Job in Morph |

@@ -17,7 +17,7 @@ from sim.missions import BODIES, mission_set
 
 
 def _brief(e: dict) -> str:
-    return f"{e['success']}/{e['n']} viol={e['violations']}"
+    return f"{e['success']}/{e['n']} (n={e['n']}) viol={e['violations']}"
 
 
 def run(body: str, gens: int, n_train: int = 6, n_reg: int = 4, max_rejects: int = 3) -> list[dict]:

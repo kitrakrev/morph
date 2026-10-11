@@ -14,8 +14,24 @@ EDITABLE = ("workflow", "rules", "constraints", "tool_specs", "reports_read", "r
             "model_routing", "budgets", "skills", "beliefs")
 
 
+SUPPORTED_LOCOMOTION = ("wheels", "legs", "rotors", "tracks", "rail")
+
+
+class UnsupportedBody(ValueError):
+    pass
+
+
 def bootstrap(structure: dict) -> dict:
-    """Initial harness derived from structure only: plausible but naive beliefs."""
+    """Initial harness derived from structure only: plausible but naive beliefs.
+
+    Refuses bodies outside the known movement vocabulary instead of guessing."""
+    loco = set(structure.get("locomotion", {}))
+    unknown = loco - set(SUPPORTED_LOCOMOTION)
+    if not loco or unknown:
+        raise UnsupportedBody(
+            f"cannot bootstrap: locomotion {sorted(unknown) or 'missing'} is outside the supported "
+            f"vocabulary {list(SUPPORTED_LOCOMOTION)}. A new movement mode needs a mode plugin "
+            f"(tier 2, sandboxed + gated) and human approval (tier 3) before this body can be planned for.")
     body = Body.from_structure(structure)
     flying = "flight" in body.modes
     return {
