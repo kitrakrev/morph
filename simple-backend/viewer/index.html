@@ -77,6 +77,18 @@ const BACKENDS = {
            videos: {drone: ["attempts-with-params-3d.mp4"], fixed_wing_vtol: ["mujoco-fixed_wing_vtol.mp4"]}},
 };
 const REPLAY_ONLY = ["drone", "fixed_wing_vtol"];
+// every attempt on one mission, rendered on each physics backend with the live harness parameters + why-it-won card
+const PAIRS = {
+  drone: ["attempts-with-params.mp4", "attempts-with-params-3d.mp4", "train-drone-100"],
+  fixed_wing_vtol: ["attempts-with-params-grid-fixed_wing_vtol.mp4", "attempts-with-params-3d-fixed_wing_vtol.mp4", "heldout-fixed_wing_vtol-902"],
+  "go2-plant-inspection": ["attempts-with-params-grid-go2-plant-inspection.mp4", "attempts-with-params-3d-go2-plant-inspection.mp4", "train-go2-plant-inspection-100"],
+  "x2-city-survey": ["attempts-with-params-grid-x2-city-survey.mp4", "attempts-with-params-3d-x2-city-survey.mp4", "train-x2-city-survey-100"],
+  "g1-warehouse-delivery": ["attempts-with-params-grid-g1-warehouse-delivery.mp4", "attempts-with-params-3d-g1-warehouse-delivery.mp4", "train-g1-warehouse-delivery-100"],
+};
+const bothBackends = () => PAIRS[BODY] ? `<div class="card"><b>Every attempt, on both physics backends</b> — mission ${PAIRS[BODY][2]}: same harness programs, inputs and live harness parameters on the right (changed fields ●), then the result, the gate's verdict and why the winning harness won<br><br>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:14px">
+  <div><b>Simple (grid)</b><br><br><video src="${vid(PAIRS[BODY][0])}" controls muted preload="metadata" style="width:100%"></video></div>
+  <div><b>MuJoCo (3D)</b><br><br><video src="${vid(PAIRS[BODY][1])}" controls muted preload="metadata" style="width:100%"></video></div></div></div>` : "";
 const mujocoBanner = () => BACKEND === "mujoco" && REPLAY_ONLY.includes(BODY) ? `<div class="card" style="border-left:4px solid #4b57c8"><b>MuJoCo backend:</b> these numbers come from the simple backend, where evolution and the gate run. MuJoCo replays the same harness programs in 3D — see Overview / Replays.</div>` : "";
 const setURL = p => history.replaceState(null, "", `?backend=${BACKEND}&body=${BODY}#${p}`);
 
@@ -84,11 +96,7 @@ const pages = {
  async overview() {
   if (BACKEND === "mujoco" && REPLAY_ONLY.includes(BODY)) {
     const clips = BACKENDS.mujoco.videos[BODY] || [];
-    const side = BODY === "drone" ? `<div class="card"><b>Same programs, both backends</b> — grid (left) vs MuJoCo 3D (right)<br><br>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:14px">
-      <div><b>Simple (grid)</b><br><br><video src="${vid("attempts-with-params.mp4")}" controls muted preload="metadata" style="width:100%"></video></div>
-      <div><b>MuJoCo (3D)</b><br><br><video src="${vid("attempts-with-params-3d.mp4")}" controls muted preload="metadata" style="width:100%"></video></div></div></div>` :
-      clips.map(v => `<div class="card"><b>${esc(v)}</b><br><br><video src="${vid(v)}" controls muted preload="metadata"></video></div>`).join("");
+    const side = bothBackends() || clips.map(v => `<div class="card"><b>${esc(v)}</b><br><br><video src="${vid(v)}" controls muted preload="metadata"></video></div>`).join("");
     return `<h2>MuJoCo backend · ${esc(BODY)}</h2><p class="sub">${BACKENDS.mujoco.desc}</p>${side}
       <div class="card muted">${esc(BODY)} was evolved on the simple backend; this is its harness replayed in MuJoCo. Results, lineage and verdicts: switch the backend selector to Simple.</div>`;
   }
@@ -104,9 +112,8 @@ const pages = {
   <div class="card"><b>The loop</b><pre>mission → planner (fixed model) → workflow graph → simulate (true physics) → locked verifier
    → Raindrop signal + Atlas failure memory → evolution agent proposes ONE bounded edit + prediction
    → gate: train ↑, safety not worse, no regression, cost per success → new version (transaction) → repeat</pre></div>
-  ${BODY === "drone" ? `<div class="card"><b>Every attempt, with the harness it ran</b> — inputs and the live harness parameters on the right, changed fields highlighted, then the result and the gate's verdict. Same programs, same verdicts.<br><br>
-   <video src="${vid("attempts-with-params.mp4")}" controls muted preload="metadata"></video></div>
-  <div class="card"><b>Hero clip</b> — held-out mission heldout-drone-903 (original set), same model, harness v1 vs v17<br><br>
+  ${bothBackends()}
+  ${BODY === "drone" ? `<div class="card"><b>Hero clip</b> — held-out mission heldout-drone-903 (original set), same model, harness v1 vs v17<br><br>
    <video src="${vid("pair-heldout-drone-903-v1-v17.mp4")}" controls autoplay muted loop></video></div>` :
   (await api("/api/videos")).filter(v => v.includes(BODY)).map(v => `<div class="card"><b>${esc(v)}</b><br><br>
    <video src="${vid(v)}" controls muted preload="metadata"></video></div>`).join("") || `<div class="card muted">No replay clips rendered for ${esc(BODY)} yet.</div>`}`;

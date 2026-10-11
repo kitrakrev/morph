@@ -26,10 +26,13 @@ from sim.world import NOFLY_CEIL, T
 
 args = [a for a in sys.argv[1:] if not a.startswith("--")]
 SPEC = sys.argv[sys.argv.index("--spec") + 1] if "--spec" in sys.argv else None
-args = [a for a in args if a != SPEC]
+args = [a for a in args if a not in (SPEC, "grid")]
 MID = args[0] if args else "train-drone-100"
 BODY = args[1] if len(args) > 1 else "drone"
-SUFFIX = "" if BODY == "drone" else f"-{BODY}"
+GRID = "--backend" in sys.argv and sys.argv[sys.argv.index("--backend") + 1] == "grid"
+PHYS = "grid" if GRID else "MuJoCo"
+SUFFIX = ("" if BODY == "drone" else f"-{BODY}")
+TAG = "grid" if GRID else "3d"
 CW, CH = 1920, 1080
 BG, INK, MUTED, NEW, OK, BAD = (251, 251, 248), (29, 36, 32), (107, 115, 110), (0, 120, 76), (46, 125, 50), (198, 40, 40)
 FIELDS = ["workflow", "rules", "tool_specs", "beliefs", "budgets", "retrieval_policy"]
@@ -98,7 +101,7 @@ def altitude(trace, k, w=800, h=300):
     d.rectangle([x0, y0, x1, y1], outline=MUTED)
     for z in range(0, zmax + 1, 2):
         d.text((x0 - 30, zy(z) - 8), str(z), font=F_S, fill=MUTED)
-    d.text((x0, y1 + 10), "time (s, MuJoCo)", font=F_S, fill=MUTED)
+    d.text((x0, y1 + 10), f"time (s, {PHYS})", font=F_S, fill=MUTED)
     d.text((8, y0), "alt", font=F_S, fill=MUTED)
     pts = [(x0 + (x1 - x0) * f["t"] / tmax, zy(f["pos"][2] - 0.5 if f["pos"][2] > 0.3 else 0)) for f in trace[:k + 1]]
     if len(pts) > 1:
@@ -129,7 +132,7 @@ def right_panel(n, v, h, prev, t, score, final):
     goal = mission["goal"]
     line("goal     " + "; ".join(f"{x['type']} {x.get('item', '')}".strip() for x in tasks(goal)) +
          f" · 0 violations · ≥{int(100 * goal.get('reserve_frac', 0))}% reserve")
-    line("planner  Claude Haiku (fixed)   evolver  Claude Sonnet   physics  MuJoCo")
+    line(f"planner  Claude Haiku (fixed)   evolver  Claude Sonnet   physics  {PHYS}")
     y += 14
     line(f"HARNESS v{v}  ·  attempt {n} of {len(versions)}", INK, F_H, gap=36)
     for f in FIELDS:
@@ -144,10 +147,10 @@ def right_panel(n, v, h, prev, t, score, final):
         gate = {1: "bootstrap (no gate)"}.get(v, "gate ACCEPTED" if h.get("verdict") == "accepted"
                                               else "gate REJECTED → harness discarded")
         line(gate, OK if h.get("verdict") == "accepted" else (MUTED if v == 1 else BAD), F_H, wrap=40, gap=32)
-        line(f"MuJoCo: {score['energy_wh']} Wh · {score['time']} steps · violations {score['violations_total']}"
+        line(f"{PHYS}: {score['energy_wh']} Wh · {score['time']} steps · violations {score['violations_total']}"
              f"   (recorded grid run: {'success' if t['score']['success'] else 'fail'})", MUTED, F_S, wrap=70)
     else:
-        line("running in MuJoCo ...", MUTED, F_H)
+        line(f"running in {PHYS} ...", MUTED, F_H)
     return im
 
 
@@ -156,7 +159,7 @@ def end_card(outcomes, seconds=9):
     wins = [o for o in outcomes if o["score"]["success"] and o["h"].get("verdict") in ("accepted", "bootstrap")]
     if not wins:
         return None
-    w, base = wins[0], outcomes[0]
+    w, base = wins[-1], outcomes[0]  # the final accepted harness that delivers
     ev = db().evaluations.find_one({"body": BODY, "version": w["v"]}) or {}
     im = Image.new("RGB", (CW, CH), BG)
     d = ImageDraw.Draw(im)
@@ -177,6 +180,9 @@ def end_card(outcomes, seconds=9):
             old, new = fmt(f, base["h"].get(f)), fmt(f, w["h"].get(f))
             added = new[len(old):].lstrip(" |") if new.startswith(old) else new
             line(("+ " if new.startswith(old) else "") + added, NEW, F_S, x=110, wrap=170, gap=20)
+    if w is base:
+        line("nothing: the bootstrap harness (built from the robot's structure alone) already met the goal,", NEW, F_B, x=80)
+        line("so the loop stopped — no edit was proposed and none was needed.", NEW, F_B, x=80)
     y += 10
     line("WHY  (evolver's reasoning, from failure memory)", MUTED, F_H, gap=34)
     chain = [o for o in outcomes if o["h"].get("verdict") == "accepted" and o["v"] <= w["v"]]
@@ -192,7 +198,7 @@ def end_card(outcomes, seconds=9):
              f"{m.get('parent', {}).get('reg')} → {m.get('candidate', {}).get('reg')} · violations "
              f"{m.get('parent', {}).get('viol')} → {m.get('candidate', {}).get('viol')}   predicted {ev.get('prediction')}"
              f" measured {ev.get('measured')}", INK, F_B, x=80)
-    line(f"this mission in MuJoCo: delivered, {w['score']['energy_wh']} Wh, {w['score']['violations_total']} violations",
+    line(f"this mission in {PHYS}: delivered, {w['score']['energy_wh']} Wh, {w['score']['violations_total']} violations",
          INK, F_B, x=80)
     y += 10
     line("WHY THE OTHERS LOST", MUTED, F_H, gap=34)
@@ -207,19 +213,51 @@ def end_card(outcomes, seconds=9):
             else f" · gate: {e.get('reason', verdict)}"
         line(f"v{o['v']} ({verdict}): {'delivered' if o['score']['success'] else res}{gate}", BAD if verdict == "rejected"
              else INK, F_B, x=80, wrap=140)
-    png, out = f"out/attempts3d{SUFFIX}-card.png", f"out/attempts3d{SUFFIX}-card.mp4"
+    png, out = f"out/attempts{TAG}{SUFFIX}-card.png", f"out/attempts{TAG}{SUFFIX}-card.mp4"
     im.save(png)
     subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-loop", "1", "-i", png, "-t", str(seconds), "-r", "30",
                     "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "20", out], check=True)
     return out
 
 
+def grid_video(out, trace, compose, sim, fps=30):
+    """Grid backend: the large view is the top-down map with the route drawn up to each step."""
+    per = max(1, min(8, int(14 * fps / max(len(trace), 1))))  # video frames per simulator step
+    ff = subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{CW}x{CH}",
+                           "-r", str(fps), "-i", "-", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "20", out],
+                          stdin=subprocess.PIPE)
+    for k, f in enumerate(trace):
+        big = minimap(sim, trace, k, size=640)
+        view = Image.new("RGB", (1152, 648), BG)
+        view.paste(big, ((1152 - big.width) // 2, (648 - big.height) // 2))
+        final = k == len(trace) - 1
+        img = compose(np.asarray(view), {**f, "battery": f["battery"]}, k, 1.0 if final else k / len(trace))
+        buf = np.asarray(img.convert("RGB")).tobytes()
+        for _ in range(int(fps * 2.5) if final else per):
+            ff.stdin.write(buf)
+    ff.stdin.close()
+    ff.wait()
+
+
 files, prev, outcomes = [], None, []
 for n, v in enumerate(versions, 1):
     t, h = latest[v], db().harnesses.find_one({"body_type": BODY, "version": v})
-    sim = tier2.simulate({**mission, "physics": "mujoco"}, t["program"])
+    sim = tier2.simulate({**mission, "physics": "grid" if GRID else "mujoco"}, t["program"])
     score = verifier.score(mission, sim)
-    trace = [f for f in sim.trace if f["robot"] == mission["robots"][0]["id"]]
+    rid0 = mission["robots"][0]["id"]
+    if GRID:  # grid backend: one pose per simulator frame (cell centres), 0.5 s per step for the time axis
+        from sim.mujoco_backend import cell_center
+        B = sim.robots[rid0].body.battery_wh
+        trace = [{"t": i * 0.5, "robot": rid0, "mode": sim.robots[rid0].body.modes[0],
+                  "pos": [float(c) for c in (cell_center(tuple(st["robots"][rid0]["pos"])) if len(st["robots"][rid0]["pos"]) == 3
+                          else (st["robots"][rid0]["pos"][0] + .5, (st["robots"][rid0]["pos"][1] if len(st["robots"][rid0]["pos"]) > 1 else 0) + .5, 0.0))],
+                  "battery": st["robots"][rid0]["battery"] / B, "carrying": st["robots"][rid0]["carrying"], "label": ""}
+                 for i, st in enumerate(sim.frames)]
+    else:
+        trace = [f for f in sim.trace if f["robot"] == rid0]
+    if not trace:  # nothing moved: one still pose so the minimap / altitude strip have a point
+        r0 = sim.robots[mission["robots"][0]["id"]]
+        trace = [{"t": 0.0, "pos": [r0.pos[0] + .5, r0.pos[1] + .5, 0.0]}]
 
     def compose(view, f, k, progress, n=n, v=v, h=h, prev=prev, t=t, score=score, sim=sim, trace=trace):
         canvas = Image.new("RGB", (CW, CH), BG)
@@ -237,17 +275,20 @@ for n, v in enumerate(versions, 1):
         canvas.paste(altitude(trace, kk, 820, 320), (356, 735))
         canvas.paste(right_panel(n, v, h, prev, t, score, progress >= 1.0), (1210, 70))
         return canvas
-    out = f"out/attempts3d{SUFFIX}-p{n}.mp4"
-    render3d(sim, out, compose=compose, hud=False, max_seconds=14)
+    out = f"out/attempts{TAG}{SUFFIX}-p{n}.mp4"
+    if GRID:
+        grid_video(out, trace, compose, sim)
+    else:
+        render3d(sim, out, compose=compose, hud=False, max_seconds=14)
     files.append(out)
-    print(out, f"v{v}", "MuJoCo", "OK" if score["success"] else "FAIL", h.get("verdict"))
+    print(out, f"v{v}", PHYS, "OK" if score["success"] else "FAIL", h.get("verdict"))
     outcomes.append({"v": v, "h": h, "t": t, "score": score})
     prev = h
 card = end_card(outcomes)
 if card:
     files.append(card)
-with open(f"out/attempts3d{SUFFIX}-list.txt", "w") as fh:
+with open(f"out/attempts{TAG}{SUFFIX}-list.txt", "w") as fh:
     fh.writelines(f"file '{f.split('/')[-1]}'\n" for f in files)
-subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "concat", "-safe", "0", "-i", f"attempts3d{SUFFIX}-list.txt",
-                "-c", "copy", f"attempts-with-params-3d{SUFFIX}.mp4"], cwd="out", check=True)
-print(f"out/attempts-with-params-3d{SUFFIX}.mp4")
+subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "concat", "-safe", "0", "-i", f"attempts{TAG}{SUFFIX}-list.txt",
+                "-c", "copy", f"attempts-with-params-{TAG}{SUFFIX}.mp4"], cwd="out", check=True)
+print(f"out/attempts-with-params-{TAG}{SUFFIX}.mp4")
