@@ -10,7 +10,7 @@ from sim.mission import build_sim
 from sim.skills import PRIMITIVES
 from sim.world import T
 
-DEFAULT_BELIEFS = {"wh_per_cell": {"wheel": 0.15, "legs": 0.35, "rail": 0.05, "flight": 0.4},
+DEFAULT_BELIEFS = {"wh_per_cell": {"wheel": 0.15, "legs": 0.35, "rail": 0.05, "flight": 0.4, "fixed_wing": 0.25},
                    "payload_kg_max": None, "reserve_frac": 0.0}
 
 
@@ -31,14 +31,15 @@ def check(mission: dict, program: list[dict], beliefs: dict | None = None) -> di
             continue
         r = sim.robots[rid]
         if name in ("move_to", "fly_to"):
-            mode = "flight" if name == "fly_to" else next((m for m in r.body.modes if m != "flight"), None)
+            air = "fixed_wing" if "fixed_wing" in r.body.modes else "flight"
+            mode = air if name == "fly_to" else next((m for m in r.body.modes if m not in ("flight", "fixed_wing")), None)
             if mode is None or mode not in r.body.modes:
                 reasons.append(f"step {i}: {rid} cannot {name}")
                 continue
             goal = tuple(args.get("pos", ()))
             if sim.world.dims == 3 and len(goal) == 2:
                 goal = (*goal, 0)
-            if mode == "flight" and sim.world.dims == 3:
+            if mode in ("flight", "fixed_wing") and sim.world.dims == 3:
                 alt = max(1, int(args.get("alt", 1)))
                 avoid = (T.NOFLY,) if args.get("avoid_nofly") else ()
                 path = sim._astar((*pos[rid][:2], alt), (*goal[:2], alt), "flight", layer=alt, avoid=avoid)

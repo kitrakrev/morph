@@ -15,7 +15,8 @@ from engine.memory import Memory
 from engine.store import db
 from sim.physics import Body
 
-CATEGORY = {"legs": "legged", "wheels": "wheeled", "tracks": "wheeled", "rotors": "aerial", "rail": "rail"}
+CATEGORY = {"legs": "legged", "wheels": "wheeled", "tracks": "wheeled", "rotors": "aerial", "rail": "rail",
+            "fixed_wing": "aerial"}
 INHERIT = ("workflow", "rules", "budgets", "retrieval_policy", "reports_read", "skills")
 
 
