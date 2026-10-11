@@ -118,6 +118,11 @@ lessons transfer**; safety violations on promoted versions.
 
 ## Scope and limitations
 
+**Scope in one line:** Morph adapts its harness to new robots described by a spec file, within a known set of
+movement types (wheels, legs, rotors, tracks, rail, fixed-wing), on simulated terrain, for delivery missions,
+with a fixed planner model. A new movement type or goal type is a human-written plugin; the harness then learns
+to use it. It can expand what it does, never how it is judged.
+
 What Morph claims, narrowly: for **high-level mission planning** of robots built from a known movement
 vocabulary (wheels, legs, rotors, tracks, rail) on a known grid map, Morph adapts the harness to a new body
 without retraining, and never promotes a change that adds safety violations **on the tested missions**.
@@ -182,6 +187,16 @@ telemetry, reports.
 **Used:** MongoDB Atlas (sandbox cluster), Claude Haiku (planner) and Claude Sonnet (evolution agent) via Claude Code
 headless mode (`claude -p`), OpenRouter free models (earlier runs), Raindrop (Python SDK), numpy, matplotlib, ffmpeg, pymongo.
 Not used: MuJoCo, real robots, any training or fine-tuning.
+
+## Videos
+
+| Video | What it shows |
+|---|---|
+| [morph-demo.mp4](docs/out/morph-demo.mp4) | 1-minute narrated demo (ElevenLabs) |
+| [evolution-timeline.mp4](docs/out/evolution-timeline.mp4) | Start inputs (robot, terrain, goal, models), then every version's changed parameters old → new, prediction vs measured, scores and gate verdict — drone v1 → v8 → v14 (rejected) → v17, fixed-wing v1 → v2 |
+| [drone held-out 903, v1 vs v17](docs/out/pair-heldout-drone-903-v1-v17.mp4) | Starting harness drives and fails; evolved harness flies and delivers |
+| [hard tier, v19 vs v17](docs/out/pair-train-drone-101-medium-long_range-v19-v17.mp4) | Why the gate rejected v19: same long-range mission, v19 dies mid-air, v17 delivers |
+| [fixed-wing held-out 900 / 902, v1 vs v2](docs/out/pair-heldout-fixed_wing_vtol-902-v1-v2.mp4) | No-fly violations before, clean routing after Raindrop-driven edit |
 
 ## Evidence viewer (localhost)
 

@@ -26,7 +26,7 @@ for b in BODIES:  # drone keeps the un-suffixed files the page loads first
     w("trials" + sfx, server.trials(b, None, None))
     lin += lb
 w("matrix", {"md": server.matrix_md()})
-vids = [v for v in server.videos() if v.startswith("pair-")]
+vids = [v for v in server.videos() if v.startswith(("pair-", "evolution-"))]
 w("videos", vids)
 w("feed", [])
 for v in vids:
