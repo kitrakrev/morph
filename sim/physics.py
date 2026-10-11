@@ -1,0 +1,97 @@
+"""TRUE physics for Morph. Fixed code. Agents never import this module.
+
+The harness only sees outcomes (trials, verifier scores). Its beliefs about
+speed/energy live in the harness doc and may be wrong; that gap is what the
+evolution loop has to close.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from sim.world import T, World, Pos
+
+MODES = ("wheel", "legs", "flight", "rail")
+
+# steps needed to cross one cell, per mode and terrain (None = impassable)
+STEP_COST: dict[str, dict[T, int | None]] = {
+    "wheel": {T.FLOOR: 1, T.CHARGER: 1, T.RAIL: 1, T.RUBBLE: None, T.STAIRS: None, T.WATER: None},
+    "legs": {T.FLOOR: 2, T.CHARGER: 2, T.RAIL: 2, T.RUBBLE: 3, T.STAIRS: 2, T.WATER: None},
+    "rail": {T.RAIL: 1, T.CHARGER: 1},
+    "flight": {T.AIR: 1, T.FLOOR: 1, T.CHARGER: 1, T.RAIL: 1, T.RUBBLE: 1, T.STAIRS: 1, T.WATER: 1},
+}
+
+# Wh drained per cell moved at zero payload
+BASE_WH: dict[str, float] = {"wheel": 0.15, "legs": 0.35, "rail": 0.05, "flight": 0.5}
+HOVER_WH = 0.08          # flight: per step spent airborne regardless of motion
+CLIMB_WH = 0.6           # flight: per +1 altitude
+CHARGE_WH_PER_STEP = 6.0
+
+
+@dataclass(frozen=True)
+class Body:
+    """Derived from user-supplied structure. Truth, not belief."""
+    kind: str
+    modes: tuple[str, ...]
+    mass_kg: float
+    battery_wh: float
+    payload_max_kg: float
+    sensor_range: int
+
+    @staticmethod
+    def from_structure(s: dict) -> "Body":
+        loco = s.get("locomotion", {})
+        if "rotors" in loco:
+            kind, modes = "drone", ("flight",)
+        elif "legs" in loco:
+            kind, modes = ("quadruped" if loco["legs"] == 4 else "hexapod"), ("legs",)
+        elif loco.get("rail"):
+            kind, modes = "railcart", ("rail",)
+        elif "wheels" in loco:
+            kind, modes = "rover", ("wheel",)
+        else:
+            raise ValueError(f"unknown locomotion {loco}")
+        lidar = [x for x in s.get("sensors", []) if str(x).startswith("lidar_")]
+        rng = int(lidar[0].split("_")[1].rstrip("m")) if lidar else 5
+        return Body(kind, modes, float(s.get("mass_kg", 10)), float(s.get("battery_wh", 100)),
+                    float(s.get("payload_bay_kg", 5)), rng)
+
+
+def payload_factor(body: Body, mode: str, payload_kg: float) -> float:
+    """Hidden truth: flight energy grows quadratically with payload ratio."""
+    r = payload_kg / max(body.mass_kg, 0.1)
+    return 1 + 4 * r * r if mode == "flight" else 1 + r
+
+
+def passable(world: World, mode: str, p: Pos) -> bool:
+    if not world.inside(p):
+        return False
+    t = world.at(p)
+    if mode == "flight":
+        return t != T.WALL  # nofly is physically flyable; the verifier flags it
+    if world.dims == 3 and p[2] != 0:
+        return False
+    if t == T.NOFLY:
+        return mode == "flight"  # physically possible; verifier flags it
+    return STEP_COST[mode].get(t) is not None
+
+
+def step_cost(world: World, mode: str, p: Pos) -> int:
+    t = world.at(p)
+    if mode == "flight" or t == T.NOFLY:
+        return 1
+    return STEP_COST[mode][t]
+
+
+def move_energy(body: Body, mode: str, a: Pos, b: Pos, payload_kg: float) -> float:
+    wh = BASE_WH[mode] * payload_factor(body, mode, payload_kg)
+    if mode == "flight" and len(b) == 3 and b[2] > a[2]:
+        wh += CLIMB_WH * (b[2] - a[2]) * payload_factor(body, mode, payload_kg)
+    return wh
+
+
+def neighbors(world: World, p: Pos):
+    for axis in range(world.dims):
+        for d in (-1, 1):
+            q = list(p)
+            q[axis] += d
+            yield tuple(q)
