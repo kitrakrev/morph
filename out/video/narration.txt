@@ -1,0 +1,6 @@
+When a rescue team gets a new kind of robot, someone spends weeks rewriting its software. Morph rewrites it itself.
+Same mission, same AI model. On the left, the starting harness tells the drone to drive. It can't, so it fails. On the right, after Morph evolved its own rules, the drone flies every leg, and delivers.
+Morph read its failed runs from MongoDB Atlas. Claude proposed one rule change, with a prediction. And a gate it cannot modify accepted it, only because more missions succeeded, with no new violations, and no regression.
+When an edit made the drone fly through a no-fly zone thirty times, the gate rejected it. It can expand what it does, never how it's judged.
+Held-out missions it never saw went from zero to twelve out of twelve, with zero violations, and the same model. A fixed-wing VTOL adapted in one generation, after Raindrop flagged its no-fly violations.
+Built today on MongoDB Atlas, Raindrop, and Claude. Morph: the fleet that learns new bodies.
