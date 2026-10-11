@@ -5,6 +5,7 @@ Usage: PYTHONPATH=. uv run python viewer/server.py   ->  http://localhost:8765
 from __future__ import annotations
 
 import json
+import re
 import os
 import threading
 import time
@@ -38,7 +39,8 @@ def results(body: str) -> list[dict]:
             latest[k] = t
     agg = defaultdict(lambda: defaultdict(lambda: {"ok": 0, "n": 0, "viol": 0, "ts": 0}))
     for (v, split, mid), t in latest.items():
-        a = agg[v][split + (":hard" if "long_range" in mid else ":variant" if mid.count("-") > 2 else "")]
+        variant = re.search(r"-(easy|medium|hard)-[a-z_]+$", mid.split("@")[0])
+        a = agg[v][split + (":hard" if "long_range" in mid else ":variant" if variant else "")]
         a["ok"] += int(t["score"]["success"])
         a["n"] += 1
         a["viol"] += t["score"]["violations_total"]

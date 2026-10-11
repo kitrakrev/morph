@@ -1,1 +1,1 @@
-[{"version": 1, "verdict": "bootstrap", "fields": [], "era": "current", "splits": {"regression:variant": {"ok": 4, "n": 4, "viol": 0}, "train:variant": {"ok": 6, "n": 6, "viol": 0}}, "reason": null, "prediction": null, "rationale": null, "checks": null, "measured": null}]
+[{"version": 1, "verdict": "bootstrap", "fields": [], "era": "current", "splits": {"regression": {"ok": 4, "n": 4, "viol": 0}, "train": {"ok": 6, "n": 6, "viol": 0}}, "reason": null, "prediction": null, "rationale": null, "checks": null, "measured": null}]
