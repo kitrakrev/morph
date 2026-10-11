@@ -338,7 +338,14 @@ let ALL_BODIES = [];
 function fillBodies() {
   const list = BACKENDS[BACKEND].bodies || ALL_BODIES;
   if (!list.includes(BODY)) BODY = list[0];
-  $("#bsel").innerHTML = list.map(b => `<option ${b === BODY ? "selected" : ""}>${b}</option>`).join("");
+  const opt = b => `<option value="${b}" ${b === BODY ? "selected" : ""}>${b}</option>`;
+  if (BACKEND === "mujoco") {
+    const own = list.filter(b => !REPLAY_ONLY.includes(b)), rep = list.filter(b => REPLAY_ONLY.includes(b));
+    $("#bsel").innerHTML = `<optgroup label="evolved on MuJoCo">${own.map(opt).join("")}</optgroup>` +
+      `<optgroup label="grid-evolved, replayed in MuJoCo">${rep.map(b => `<option value="${b}" ${b === BODY ? "selected" : ""}>${b} (replay)</option>`).join("")}</optgroup>`;
+  } else {
+    $("#bsel").innerHTML = list.map(opt).join("");
+  }
 }
 $("#ksel").innerHTML = Object.entries(BACKENDS).map(([k, b]) => `<option value="${k}" ${k === BACKEND ? "selected" : ""}>${b.label}</option>`).join("");
 $("#ksel").onchange = () => { BACKEND = $("#ksel").value; fillBodies(); const p = location.hash.slice(1) || "overview"; setURL(p); go(p); };
