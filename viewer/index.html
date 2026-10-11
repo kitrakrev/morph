@@ -218,7 +218,7 @@ const pages = {
    <div class="card"><b>compare</b> <select id="wsel">${opts}</select><div id="wright"></div></div></div>`;
  },
  async replays() {
-  const vids = (await api("/api/videos")).filter(v => v.startsWith("pair-") || v.startsWith("evolution-")).sort((a, b) => b.startsWith("evolution-") - a.startsWith("evolution-"));
+  const vids = (await api("/api/videos")).filter(v => v.startsWith("pair-") || v.startsWith("evolution-") || v.startsWith("attempts-")).sort((a, b) => (b.startsWith("attempts-side") * 2 + b.startsWith("evolution-")) - (a.startsWith("attempts-side") * 2 + a.startsWith("evolution-")));
   return `<h2>Replays</h2><p class="sub">Same mission, same planner model, two harness versions, synced on simulation time. Battery bar turns red under the reserve line; altitude strip below.</p>` +
    vids.map(v => `<div class="card"><b>${esc(v)}</b><br><br><video src="${vid(v)}" controls muted preload="metadata"></video></div>`).join("");
  },
