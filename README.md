@@ -122,6 +122,7 @@ does, never how it is judged.**
 | Checkpoints collection | runner state per workflow node; a killed run resumes |
 | Memory collections (semantic / episodic / procedural / taxonomic) | Agent Engine–shaped memory; user_id = body category |
 | LLM response cache (unique key) | deterministic re-runs within the free-model budget |
+| **Change streams** | live feed in the evidence viewer (`viewer/server.py`): trials, new versions, gate decisions |
 
 Atlas Agent Engine: CLI signed in and a memory-only project scaffolded; the memory server needs a Voyage
 key and was not provisioned today, so memory runs on plain collections with the same API shape.
@@ -135,6 +136,12 @@ telemetry, reports.
 **Used:** MongoDB Atlas (sandbox cluster), Claude Haiku (planner) and Claude Sonnet (evolution agent) via Claude Code
 headless mode (`claude -p`), OpenRouter free models (earlier runs), Raindrop (Python SDK), numpy, matplotlib, ffmpeg, pymongo.
 Not used: MuJoCo, real robots, any training or fine-tuning.
+
+## Evidence viewer (localhost)
+
+`PYTHONPATH=. uv run python viewer/server.py` → http://localhost:8765 — read-only on Atlas. Sidebar: overview,
+results (k/n per split), lineage and diffs with gate checks and retrieved failures, workflow graph v1 vs vN,
+side-by-side replays, runs, what evolves, evaluation matrix, live change-stream feed, built on, scope.
 
 ## Run it
 

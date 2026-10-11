@@ -50,4 +50,6 @@ def commit(cand: dict, decision: dict, edit: dict) -> dict:
             db().harnesses.replace_one({"body_type": cand["body_type"], "version": cand["version"]}, cand,
                                        upsert=True, session=s)
             db().evaluations.replace_one({"candidate_id": ev["candidate_id"]}, ev, upsert=True, session=s)
+    from engine import telemetry
+    telemetry.gate_event(ev)
     return ev

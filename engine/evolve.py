@@ -37,7 +37,8 @@ def similar_failures(body: str, query: str, k: int = 6) -> list[str]:
     }}}}, {"$limit": k}, {"$project": {"_id": 0, "summary": 1}}]
     try:
         return [d["summary"] for d in db().failures.aggregate(pipe)]
-    except Exception:  # index still building or no failures yet
+    except Exception as e:  # index still building or no failures yet: say so, never silently
+        print(f"    $rankFusion unavailable ({str(e)[:60]}); using recency fallback")
         return [d["summary"] for d in db().failures.find({"body": body}, {"summary": 1}).sort("ts", -1).limit(k)]
 
 

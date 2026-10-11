@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Morph Evidence Viewer</title>
+<style>
+  :root { --bg:#f7f6f2; --panel:#fff; --ink:#1d1d1f; --muted:#6b6b70; --line:#e3e1da; --ok:#2e7d32; --bad:#c62828;
+          --accent:#00684a; --side:#0f1f1a; --sideink:#d7e7df; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#121413; --panel:#1b1e1c; --ink:#ecece8;
+          --muted:#9a9c98; --line:#2c302d; --side:#0a1410; } }
+  * { box-sizing:border-box } body { margin:0; font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+          background:var(--bg); color:var(--ink); display:flex; min-height:100vh }
+  nav { width:230px; background:var(--side); color:var(--sideink); padding:18px 12px; position:sticky; top:0; height:100vh; flex-shrink:0 }
+  nav h1 { font-size:18px; margin:0 6px 2px; color:#fff } nav .tag { font-size:12px; margin:0 6px 16px; opacity:.75 }
+  nav a { display:block; padding:8px 10px; border-radius:7px; color:inherit; text-decoration:none; margin-bottom:2px; cursor:pointer }
+  nav a.on, nav a:hover { background:#1f3a30; color:#fff }
+  main { flex:1; padding:26px 32px; max-width:1200px; min-width:0 }
+  h2 { margin:0 0 6px; font-size:22px } .sub { color:var(--muted); margin:0 0 18px }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px 18px; margin-bottom:16px }
+  .big { font-size:34px; font-weight:700; color:var(--accent) }
+  table { border-collapse:collapse; width:100%; font-size:13px } th,td { text-align:left; padding:7px 8px; border-bottom:1px solid var(--line); vertical-align:top }
+  th { color:var(--muted); font-weight:600 } .ok { color:var(--ok); font-weight:600 } .bad { color:var(--bad); font-weight:600 }
+  .pill { display:inline-block; padding:1px 8px; border-radius:20px; font-size:12px; border:1px solid var(--line) }
+  .acc { background:#e6f4ea; color:var(--ok); border-color:#b7dfc2 } .rej { background:#fdecea; color:var(--bad); border-color:#f5c2bd }
+  .muted { color:var(--muted) } code, pre { font-family:ui-monospace,Menlo,monospace; font-size:12px }
+  pre { white-space:pre-wrap; background:var(--bg); padding:10px; border-radius:8px; border:1px solid var(--line); margin:6px 0 }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:16px } video { width:100%; border-radius:8px; border:1px solid var(--line) }
+  select { padding:5px; border-radius:6px } .feed div { padding:5px 0; border-bottom:1px solid var(--line); font-family:ui-monospace,Menlo,monospace; font-size:12px }
+  svg text { fill:var(--ink) }
+  @media (max-width:800px) { body { flex-direction:column } nav { width:100%; height:auto; position:static } .grid2 { grid-template-columns:1fr } main { padding:16px } }
+</style>
+</head>
+<body>
+<nav>
+  <h1>Morph</h1><div class="tag">the fleet that learns new bodies</div>
+  <a data-p="overview">Overview</a><a data-p="results">Results</a><a data-p="lineage">Lineage &amp; edits</a>
+  <a data-p="workflow">Workflow graph</a><a data-p="replays">Replays</a><a data-p="runs">Runs</a>
+  <a data-p="evolves">What evolves</a><a data-p="matrix">Evaluation matrix</a><a data-p="feed">Live feed</a>
+  <a data-p="stack">Built on</a><a data-p="scope">Scope &amp; limits</a>
+</nav>
+<main id="main"></main>
+<script>
+const $ = s => document.querySelector(s), api = p => fetch(p).then(r => r.json());
+const esc = s => String(s ?? "").replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+const frac = x => x ? `${x.ok}/${x.n}` : "—";
+let feedTimer;
+
+const pages = {
+ async overview() {
+  const rows = (await api("/api/results")).filter(r => r.era === "current");
+  const v = n => rows.find(r => r.version === n);
+  const h1 = v(1)?.splits?.heldout, hb = rows.filter(r => r.splits.heldout && r.verdict === "accepted").pop();
+  return `<h2>Plug in a robot. The harness does the rest.</h2>
+  <p class="sub">Robot fleets change bodies. Morph's harness rewrites its own rules, limits and workflow from its own failures, and keeps a change only when a locked verifier proves it on missions the agent never saw. The model never changes.</p>
+  <div class="card"><div class="muted">Held-out drone missions, same planner model (Claude Haiku)</div>
+   <div class="big">${frac(h1)} → ${frac(hb?.splits?.heldout)}</div>
+   <div>v1 (bootstrap from structure) → v${hb?.version ?? "?"} (evolved) · violations on promoted version: <b>${hb?.splits?.heldout?.viol ?? "—"}</b> · n = ${hb?.splits?.heldout?.n ?? "—"}</div></div>
+  <div class="card"><b>The loop</b><pre>mission → planner (fixed model) → workflow graph → simulate (true physics) → locked verifier
+   → Raindrop signal + Atlas failure memory → evolution agent proposes ONE bounded edit + prediction
+   → gate: train ↑, safety not worse, no regression, cost per success → new version (transaction) → repeat</pre></div>
+  <div class="card"><b>Hero clip</b> — same mission, same model, harness v1 vs v17<br><br>
+   <video src="/out/pair-heldout-drone-903-v1-v17.mp4" controls autoplay muted loop></video></div>`;
+ },
+ async results() {
+  const rows = await api("/api/results");
+  const tr = r => `<tr><td>v${r.version}</td><td>${r.verdict === "accepted" ? '<span class="pill acc">accepted</span>' : r.verdict === "rejected" ? '<span class="pill rej">rejected</span>' : esc(r.verdict)}</td>
+   <td>${esc(r.fields.join(", "))}</td><td>${frac(r.splits.train)}</td><td>${frac(r.splits.regression)}</td><td>${frac(r.splits.heldout)}</td>
+   <td>${["train","regression","heldout"].reduce((a,s)=>a+(r.splits[s]?.viol||0),0)}</td>
+   <td class="muted">${esc(r.reason || "")}</td><td class="muted">${r.prediction ? esc(JSON.stringify(r.prediction)) + " / " + esc(JSON.stringify(r.measured)) : ""}</td></tr>`;
+  const head = `<tr><th>ver</th><th>verdict</th><th>edited fields</th><th>train</th><th>regression</th><th>held-out</th><th>violations</th><th>gate reason</th><th>predicted / measured</th></tr>`;
+  return `<h2>Results — drone</h2><p class="sub">Latest run per mission. Every score shows k/n. Held-out is scored after acceptance and never used for selection.</p>
+   <div class="card"><b>Current run</b> (planner Claude Haiku, evolution Claude Sonnet, physics v2)<table>${head}${rows.filter(r=>r.era==="current").map(tr).join("")}</table></div>
+   <div class="card"><b>Earlier run</b> (free Nemotron planner, physics v1) — kept for comparison<table>${head}${rows.filter(r=>r.era!=="current").map(tr).join("")}</table></div>`;
+ },
+ async lineage() {
+  const L = await api("/api/lineage");
+  return `<h2>Lineage &amp; edits</h2><p class="sub">Every candidate the evolution agent proposed, its diff, the gate's checks, and the failures it retrieved from Atlas ($rankFusion).</p>` +
+   L.map(h => `<div class="card"><b>v${h.version}</b> ← v${h.parent ?? "—"} &nbsp; ${h.verdict === "accepted" ? '<span class="pill acc">accepted</span>' : h.verdict === "rejected" ? '<span class="pill rej">rejected</span>' : `<span class="pill">${esc(h.verdict)}</span>`}
+    <span class="muted">${esc(h.model || "")}</span>
+    ${h.rationale ? `<p>${esc(h.rationale)}</p>` : ""}
+    ${(Array.isArray(h.diff) ? h.diff : h.diff ? [h.diff] : []).map(d => `<pre><b>${esc(d.field)}</b>\n- ${esc(JSON.stringify(d.old))}\n+ ${esc(JSON.stringify(d.new))}</pre>`).join("")}
+    ${h.reason ? `<div>Gate: <span class="${h.verdict==="accepted"?"ok":"bad"}">${esc(h.reason)}</span> ${h.checks ? "· " + Object.entries(h.checks).map(([k,v]) => `${v?"✓":"✗"} ${k}`).join(" · ") : ""}</div>` : ""}
+    ${h.retrieved?.length ? `<details><summary class="muted">retrieved similar failures (${h.retrieved.length})</summary><pre>${h.retrieved.map(esc).join("\n")}</pre></details>` : ""}</div>`).join("");
+ },
+ async workflow() {
+  const L = await api("/api/lineage");
+  const opts = L.map(h => `<option value="${h.version}" ${h.version===17?"selected":""}>v${h.version} (${h.verdict})</option>`).join("");
+  setTimeout(() => { const s = $("#wsel"); const draw = () => { const h = L.find(x => x.version == s.value);
+    $("#wright").innerHTML = graph(h, L[0]) + `<pre>${esc((h.rules||[]).join("\n"))}</pre>`; }; s.onchange = draw; draw(); });
+  return `<h2>Workflow graph</h2><p class="sub">The step graph is data the harness evolves. New steps are highlighted.</p>
+   <div class="grid2"><div class="card"><b>v1 (bootstrap)</b>${graph(L[0], L[0])}<pre>${esc((L[0].rules||[]).join("\n"))}</pre></div>
+   <div class="card"><b>compare</b> <select id="wsel">${opts}</select><div id="wright"></div></div></div>`;
+ },
+ async replays() {
+  const vids = (await api("/api/videos")).filter(v => v.startsWith("pair-"));
+  return `<h2>Replays</h2><p class="sub">Same mission, same planner model, two harness versions, synced on simulation time. Battery bar turns red under the reserve line; altitude strip below.</p>` +
+   vids.map(v => `<div class="card"><b>${esc(v)}</b><br><br><video src="/out/${v}" controls muted preload="metadata"></video></div>`).join("");
+ },
+ async runs() {
+  const T = await api("/api/trials?version=17");
+  return `<h2>Runs — v17</h2><p class="sub">Each trial: the program the planner produced, the verifier's verdict, and the diagnosis stored in Atlas.</p>
+   <div class="card"><table><tr><th>mission</th><th>split</th><th>result</th><th>energy Wh</th><th>violations</th><th>actions</th><th>diagnosis</th></tr>
+   ${T.map(t => `<tr><td>${esc(t.mission)}</td><td>${t.split}</td><td class="${t.ok?"ok":"bad"}">${t.ok?"delivered":"failed"}</td><td>${t.energy}</td><td>${t.viol}</td><td><code>${esc(t.actions)}</code></td><td class="muted">${esc(t.diagnosis)}</td></tr>`).join("")}</table></div>`;
+ },
+ async evolves() {
+  const L = await api("/api/lineage"), changed = {};
+  L.forEach(h => (Array.isArray(h.diff) ? h.diff : h.diff ? [h.diff] : []).forEach(d => (changed[d.field] ||= []).push(`v${h.version}${h.verdict==="accepted"?"✓":"✗"}`)));
+  const F = [["workflow","step graph the engine runs (plan, tier1_check, replan, tier2_sim, verify)"],["rules","plain-language rules the planner must follow"],
+   ["constraints","hard limits (payload, altitude); nofly + collision locked to hard"],["tool_specs","per-tool parameter bounds, e.g. fly_to alt range, avoid_nofly"],
+   ["beliefs","the harness's own energy model and reserve (not the true physics)"],["reports_read","diagnostics the planner sees"],
+   ["retrieval_policy","how many episodes / procedures from memory"],["model_routing","which model tier plans"],["budgets","replans, tool calls, tier2 runs"],["skills","composed skills built from primitives"]];
+  return `<h2>What evolves</h2><p class="sub">Exactly the fields in <code>engine/harness.py: EDITABLE</code>. ✓ = accepted, ✗ = rejected.</p>
+   <div class="card"><table><tr><th>field</th><th>controls</th><th>changed in</th></tr>${F.map(([f,d]) => `<tr><td><code>${f}</code></td><td>${d}</td><td>${(changed[f]||["—"]).join(" ")}</td></tr>`).join("")}</table></div>
+   <div class="card"><b>Never changeable:</b> simulator and true physics, verifier, scoring, primitive list, held-out data, locked constraints (no-fly hard, collisions forbidden). Edit budget per candidate: 3 fields at v1–v2, 2 at v3–v4, then 1.</div>`;
+ },
+ async matrix() {
+  const m = await api("/api/matrix");
+  const rows = m.md.split("\n").filter(l => l.startsWith("|") && !l.startsWith("|---"));
+  const tbl = rows.map((r, i) => "<tr>" + r.split("|").slice(1, -1).map(c => i % 1 === 0 && (rows[0] === r || r.startsWith("| body")) ? `<th>${esc(c.trim())}</th>` : `<td>${c.trim().replace(/\*\*(.*?)\*\*/g,"<b>$1</b>")}</td>`).join("") + "</tr>").join("");
+  return `<h2>Evaluation matrix</h2><p class="sub">Bodies × terrain difficulty × mission type. Cells not run today say so.</p><div class="card"><table>${tbl}</table></div>`;
+ },
+ async feed() {
+  const draw = async () => { const F = await api("/api/feed"); const el = $("#feedl"); if (el) el.innerHTML = F.length ? F.map(e => `<div>${e.ts} · <b>${esc(e.coll)}</b> · ${esc(e.msg)}</div>`).join("") : '<div class="muted">waiting for changes… run the engine: PYTHONPATH=. uv run python -m engine.loop drone --gens 1</div>'; };
+  feedTimer = setInterval(draw, 2000); setTimeout(draw);
+  return `<h2>Live feed</h2><p class="sub">Atlas change stream on trials, harnesses and evaluations. Start a generation on the laptop and watch it land here.</p><div class="card feed" id="feedl"></div>`;
+ },
+ async stack() {
+  return `<h2>Built on</h2><div class="card"><table><tr><th>sponsor / tool</th><th>how Morph uses it</th></tr>
+   <tr><td>MongoDB Atlas</td><td>versioned harness lineage (unique index), trials, transaction on promotion, autoEmbed (voyage-4-lite) vector + keyword indexes on failures, $rankFusion hybrid retrieval, time-series metrics, checkpoints for resume, change streams (this viewer), LLM response cache</td></tr>
+   <tr><td>Atlas Agent Engine</td><td>memory API shape (semantic / episodic / procedural / taxonomic); <b>running on fallback collections</b> — the hosted memory server was not provisioned today</td></tr>
+   <tr><td>Raindrop</td><td>one <code>mission_trial</code> event per trial with signals battery_death, nofly_violation, payload_violation, reserve_breach, delivered; one event per planner / evolution LLM call</td></tr>
+   <tr><td>Claude (Claude Code headless)</td><td>planner = Haiku (fixed all day), evolution agent = Sonnet; cached in Atlas</td></tr></table></div>`;
+ },
+ async scope() {
+  return `<h2>Scope &amp; limits</h2><div class="card"><ul>
+   <li><b>Planning layer only</b> — assumes each body has its own low-level controller.</li>
+   <li><b>Known movement vocabulary</b> — wheels, legs, rotors, tracks, rail; unknown locomotion is refused at bootstrap.</li>
+   <li><b>Simplified simulated physics</b> — no sim-to-real claim.</li><li><b>Static, known maps.</b></li>
+   <li><b>Measured only on tested missions</b> — every score has its n.</li><li><b>Fixed planner model</b> — Claude Haiku.</li>
+   <li><b>Single robot per mission</b> — relay is generated, not planned.</li></ul>
+   <p>The harness can expand <i>what it does</i>, never <i>how it is judged</i>.</p></div>`;
+ },
+};
+
+function graph(h, base) {
+  const nodes = h?.workflow?.nodes || [], baseN = new Set(base?.workflow?.nodes || []);
+  const W = 120, gap = 22, w = nodes.length * (W + gap);
+  return `<svg viewBox="0 0 ${Math.max(w, 300)} 70" width="100%" role="img" aria-label="workflow graph">` + nodes.map((n, i) => {
+    const x = i * (W + gap), added = !baseN.has(n);
+    return `<rect x="${x}" y="15" width="${W}" height="38" rx="8" fill="${added ? "#e6f4ea" : "none"}" stroke="${added ? "#2e7d32" : "#999"}" stroke-width="${added ? 2 : 1}"/>
+      <text x="${x + W / 2}" y="39" text-anchor="middle" font-size="13">${n}</text>` +
+      (i < nodes.length - 1 ? `<line x1="${x + W}" y1="34" x2="${x + W + gap}" y2="34" stroke="#999" marker-end="url(#a)"/>` : "");
+  }).join("") + `<defs><marker id="a" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6" fill="#999"/></marker></defs></svg>`;
+}
+
+async function go(p) {
+  clearInterval(feedTimer);
+  document.querySelectorAll("nav a").forEach(a => a.classList.toggle("on", a.dataset.p === p));
+  $("#main").innerHTML = '<p class="muted">loading…</p>';
+  try { $("#main").innerHTML = await pages[p](); } catch (e) { $("#main").innerHTML = `<p class="bad">${esc(e)}</p>`; }
+  history.replaceState(null, "", "#" + p);
+}
+document.querySelectorAll("nav a").forEach(a => a.onclick = () => go(a.dataset.p));
+go(location.hash.slice(1) || "overview");
+</script>
+</body>
+</html>

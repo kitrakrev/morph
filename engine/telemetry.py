@@ -64,6 +64,22 @@ def llm_event(role: str, model: str, system: str, user: str, output: dict, body:
     )
 
 
+def gate_event(ev: dict) -> None:
+    """One event per gate decision; signal edit_accepted / edit_rejected."""
+    if not _ON:
+        return
+    eid = f"gate-{ev['candidate_id']}"
+    raindrop.track_ai(
+        user_id=ev["body"], event="harness_gate", event_id=eid, convo_id=f"{ev['body']}-v{ev['version']}",
+        model=ev.get("model"), input=json.dumps({"edit": ev.get("edit"), "prediction": ev.get("prediction")}, default=str),
+        output=f"{'ACCEPTED' if ev['accepted'] else 'REJECTED'}: {ev['reason']}",
+        properties={"version": ev["version"], "parent": ev["parent"], "accepted": ev["accepted"],
+                    **{f"check_{k}": v for k, v in (ev.get("checks") or {}).items()},
+                    "measured": json.dumps(ev.get("measured"))})
+    raindrop.track_signal(event_id=eid, name="edit_accepted" if ev["accepted"] else "edit_rejected",
+                          signal_type="default", sentiment="POSITIVE" if ev["accepted"] else "NEGATIVE")
+
+
 def flush() -> None:
     if _ON:
         raindrop.flush()
