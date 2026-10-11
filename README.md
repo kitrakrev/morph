@@ -10,6 +10,10 @@ proven on missions it never saw. Every lesson is stored in MongoDB Atlas and can
 
 **The model never changes. The harness does.**
 
+![Same held-out mission, same planner model: harness v1 fails, v17 delivers](docs/img/hero.gif)
+
+Live evidence viewer: **https://kitrakrev.github.io/morph/**
+
 Built solo at The Harness Engineering & Model Wrangling #SFTechWeek Hackathon (Oct 11 2026).
 Problem statement: **1 — Recursive Harnessing** (primary); touches **2 — Long Horizon** through
 persistent Atlas memory and checkpoint/resume.
