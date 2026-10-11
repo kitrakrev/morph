@@ -68,7 +68,7 @@ class Sim:
             return False
         steps = physics.step_cost(self.world, mode, nxt)
         wh = physics.move_energy(r.body, mode, r.pos, nxt, self.payload(r))
-        if mode == "flight":
+        if mode == "flight":  # rotorcraft hover drain; fixed-wing glides (no hover)
             wh += physics.HOVER_WH * steps * (1 + physics.WIND_PER_Z * (nxt[2] if len(nxt) == 3 else 0))
         r.battery -= wh
         r.drained_wh += wh
@@ -139,8 +139,12 @@ class Sim:
 
     def fly_to(self, rid: str, pos: list[int], alt: int = 0, avoid_nofly: bool = False) -> dict:
         r = self.robots[rid]
-        if "flight" not in r.body.modes:
+        fw = "fixed_wing" in r.body.modes
+        mode = "fixed_wing" if fw else "flight"
+        if "flight" not in r.body.modes and not fw:
             return self._fail(rid, "fly_to", "body cannot fly")
+        if fw and int(alt) < physics.FW_MIN_ALT:
+            return self._fail(rid, "fly_to", f"fixed-wing cannot cruise below {physics.FW_MIN_ALT} (asked {alt})")
         avoid = (T.NOFLY,) if avoid_nofly else ()
         if self.world.dims < 3:  # 1D/2D: flight ignores ground terrain except walls
             path = self._astar(r.pos, tuple(pos), "flight", avoid=avoid)
@@ -154,15 +158,39 @@ class Sim:
             cruise = self._astar((*r.pos[:2], alt), (x, y, alt), "flight", layer=alt, avoid=avoid)
             down = [(x, y, z) for z in range(alt - 1, z_end - 1, -1)]
             legs = None if cruise is None else [up, cruise, down]
+            if fw and r.pos[2] == 0 and not self.open_cell(r.pos[0], r.pos[1]):
+                return self._fail(rid, "fly_to", f"fixed-wing cannot take off from non-open cell {list(r.pos[:2])}")
         if legs is None:
             return self._fail(rid, "fly_to", f"no flight path at alt {alt}")
-        for leg in legs:
+        for i, leg in enumerate(legs):
+            if fw and i == 2 and leg and not self.open_cell(x, y):
+                return self._fail(rid, "fly_to", f"fixed-wing cannot land on non-open cell {[x, y]}")
             for p in leg:
-                if not physics.passable(self.world, "flight", p):
+                if not physics.passable(self.world, mode, p):
                     return self._fail(rid, "fly_to", f"blocked at {list(p)}")
-                if not self._advance(r, p, "flight"):
+                if not self._advance(r, p, mode):
                     return {"ok": False, "reason": "stopped", "pos": list(r.pos)}
+            if fw and i == 1 and len(leg) > 2:  # turn-radius cost on the cruise leg
+                turns = sum(1 for a, b, c in zip(leg, leg[1:], leg[2:])
+                            if (b[0] - a[0], b[1] - a[1]) != (c[0] - b[0], c[1] - b[1]))
+                if turns:
+                    r.battery -= physics.FW_TURN_WH * turns
+                    r.drained_wh += physics.FW_TURN_WH * turns
+                    if r.battery <= 0:
+                        r.battery, r.alive = 0.0, False
+                        self.emit("battery_death", r.id, pos=list(r.pos), airborne=r.airborne)
+                        return {"ok": False, "reason": "stopped", "pos": list(r.pos)}
         return {"ok": True, "pos": list(r.pos)}
+
+    def open_cell(self, x: int, y: int) -> bool:
+        """VTOL pad / runway: ground cell and its 4 neighbours are floor or charger, no no-fly above."""
+        g = self.world.grid
+        ok = (T.FLOOR, T.CHARGER)
+        for dx, dy in ((0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)):
+            cx, cy = x + dx, y + dy
+            if not (0 <= cx < g.shape[0] and 0 <= cy < g.shape[1]) or T(int(g[cx, cy, 0])) not in ok:
+                return False
+        return not (g[x, y, 1:] == T.NOFLY).any()
 
     def pick(self, rid: str, item: str) -> dict:
         r, it = self.robots[rid], self.items.get(item)

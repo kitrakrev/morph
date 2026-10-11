@@ -27,13 +27,15 @@ BODIES = {
                  "sensors": ["camera"], "size_m": [1.5, 0.8, 0.6]},
     "hybrid": {"locomotion": {"wheels": 4, "rotors": 4}, "mass_kg": 4.0, "battery_wh": 70, "payload_bay_kg": 1.5,
                "sensors": ["camera", "lidar_20m"], "size_m": [0.7, 0.6, 0.35]},
+    "fixed_wing_vtol": {"locomotion": {"fixed_wing": 1}, "mass_kg": 5.0, "battery_wh": 90, "payload_bay_kg": 1.5,
+                        "sensors": ["camera", "lidar_20m"], "size_m": [1.6, 1.1, 0.3]},
     "hexapod": {"locomotion": {"legs": 6}, "mass_kg": 18, "battery_wh": 120, "payload_bay_kg": 4,
                 "sensors": ["camera", "lidar_10m"], "size_m": [0.8, 0.6, 0.4]},
 }
 HELDOUT_BODIES = ("hexapod",)
-MODE = {"hybrid": "flight", "rover": "wheel", "tracked": "tracks", "quadruped": "legs", "hexapod": "legs", "railcart": "rail",
+MODE = {"fixed_wing_vtol": "flight", "hybrid": "flight", "rover": "wheel", "tracked": "tracks", "quadruped": "legs", "hexapod": "legs", "railcart": "rail",
         "drone": "flight"}
-DEFAULT_DIMS = {"drone": 3, "hybrid": 3, "railcart": 1}
+DEFAULT_DIMS = {"drone": 3, "hybrid": 3, "fixed_wing_vtol": 3, "railcart": 1}
 DIFFICULTIES = ("easy", "medium", "hard")
 MISSION_TYPES = ("single", "heavy", "deadline", "multi_stop", "relay", "long_range")
 ITEMS = [("water", 4.0), ("radio", 0.8), ("supply_kit", 2.5), ("blanket", 1.2)]
@@ -44,6 +46,8 @@ def _cells(sim, body_kind):
     g = sim.world.grid if sim.world.dims < 3 else sim.world.grid[:, :, 0]
     ok = [T.RAIL] if body_kind == "railcart" else [T.FLOOR]
     mask = np.isin(g, ok)
+    if body_kind == "fixed_wing_vtol":  # pickups/targets only on VTOL pads (open cells)
+        mask &= np.array([[sim.open_cell(x, y) for y in range(g.shape[1])] for x in range(g.shape[0])])
     if sim.world.dims == 3:  # no pickups/drops under a no-fly column: takeoff/landing would breach it
         mask &= ~(sim.world.grid[:, :, 1:] == T.NOFLY).any(axis=2)  # takeoff/landing passes through the zone
     return [tuple(int(c) for c in p) for p in np.argwhere(mask)]
@@ -60,7 +64,7 @@ def make_mission(body_kind: str, seed: int, split: str, dims: int | None = None,
     item, kg = ITEMS[int(rng.integers(len(ITEMS)))]
     if body_kind == "drone":
         item, kg = ("radio", 0.8) if rng.random() < 0.6 else ("blanket", 0.5)
-    if body_kind == "hybrid":
+    if body_kind in ("hybrid", "fixed_wing_vtol"):
         item, kg = ("radio", 0.8) if rng.random() < 0.5 else ("blanket", 1.2)
     spec = BODIES[body_kind]
     if mtype == "heavy":
@@ -106,6 +110,8 @@ def make_mission(body_kind: str, seed: int, split: str, dims: int | None = None,
         if mtype == "long_range" and not _needs_recharge(m):
             continue
         if body_kind == "hybrid" and not _needs_mode_choice(m):
+            continue
+        if body_kind == "fixed_wing_vtol" and not _fw_solvable(m):
             continue
         return m
     return None
@@ -160,3 +166,16 @@ def _needs_mode_choice(m: dict) -> bool:
                          leg(b, to), {"robot": r, "skill": "drop", "args": {"item": it["id"]}}]
     ok = lambda a, b: verifier.score(m, tier2.simulate(m, plan(a, b)))["success"]
     return not ok("fly", "fly") and any(ok(a, b) for a, b in (("drive", "drive"), ("drive", "fly"), ("fly", "drive")))
+
+
+def _fw_solvable(m: dict) -> bool:
+    """Fixed-wing oracle (true physics): a correct plan (cruise alt >= 3, avoid no-fly) succeeds."""
+    from sim import tier2, verifier
+    r, it, to = m["robots"][0]["id"], m["items"][0], m["goal"]["deliver"]["to"]
+    for alt in (6, 3, 4, 7):
+        a = {"alt": alt, "avoid_nofly": True}
+        plan = [{"robot": r, "skill": "fly_to", "args": {"pos": it["pos"], **a}}, {"robot": r, "skill": "pick", "args": {"item": it["id"]}},
+                {"robot": r, "skill": "fly_to", "args": {"pos": to, **a}}, {"robot": r, "skill": "drop", "args": {"item": it["id"]}}]
+        if verifier.score(m, tier2.simulate(m, plan))["success"]:
+            return True
+    return False

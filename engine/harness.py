@@ -14,7 +14,7 @@ EDITABLE = ("workflow", "rules", "constraints", "tool_specs", "reports_read", "r
             "model_routing", "budgets", "skills", "beliefs")
 
 
-SUPPORTED_LOCOMOTION = ("wheels", "legs", "rotors", "tracks", "rail")
+SUPPORTED_LOCOMOTION = ("wheels", "legs", "rotors", "tracks", "rail", "fixed_wing")
 
 
 class UnsupportedBody(ValueError):
@@ -33,7 +33,7 @@ def bootstrap(structure: dict) -> dict:
             f"vocabulary {list(SUPPORTED_LOCOMOTION)}. A new movement mode needs a mode plugin "
             f"(tier 2, sandboxed + gated) and human approval (tier 3) before this body can be planned for.")
     body = Body.from_structure(structure)
-    flying = "flight" in body.modes
+    flying = "flight" in body.modes or "fixed_wing" in body.modes
     return {
         "version": 1, "parent": None, "body_type": body.kind,
         "workflow": {"nodes": ["plan", "tier2_sim", "verify"],
@@ -42,8 +42,9 @@ def bootstrap(structure: dict) -> dict:
         "constraints": {"payload_kg_max": body.payload_max_kg, "nofly": "hard", "collision": "hard",
                         **({"altitude_max": 8} if flying else {})},
         "tool_specs": {**({"fly_to": {"alt": [1, 8], "avoid_nofly": False}} if flying else {}),
-                       **({"move_to": {}} if any(m != "flight" for m in body.modes) else {})},
-        "beliefs": {"wh_per_cell": {m: {"wheel": 0.15, "legs": 0.35, "rail": 0.05, "flight": 0.4}[m]
+                       **({"move_to": {}} if any(m not in ("flight", "fixed_wing") for m in body.modes) else {})},
+        "beliefs": {"wh_per_cell": {m: {"wheel": 0.15, "tracks": 0.25, "legs": 0.35, "rail": 0.05, "flight": 0.4,
+                                     "fixed_wing": 0.25}[m]
                                     for m in body.modes}, "reserve_frac": 0.0},
         "reports_read": ["terrain_summary"],
         "retrieval_policy": {"episodes": 0, "procedures": 0, "same_body_category": True},
