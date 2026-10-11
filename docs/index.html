@@ -82,8 +82,13 @@ const pages = {
   <div class="card"><b>The loop</b><pre>mission → planner (fixed model) → workflow graph → simulate (true physics) → locked verifier
    → Raindrop signal + Atlas failure memory → evolution agent proposes ONE bounded edit + prediction
    → gate: train ↑, safety not worse, no regression, cost per success → new version (transaction) → repeat</pre></div>
-  ${BODY === "drone" ? `<div class="card"><b>Every attempt, with the harness it ran</b> — map on the left; inputs and the live harness parameters on the right, changed fields highlighted, then the result and the gate's verdict<br><br>
-   <video src="${vid("attempts-with-params.mp4")}" controls muted preload="metadata"></video></div>
+  ${BODY === "drone" ? `<div class="card"><b>Every attempt, with the harness it ran — on both physics backends</b> — inputs and the live harness parameters on the right, changed fields highlighted, then the result and the gate's verdict. Same programs, same verdicts.<br><br>
+   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:14px">
+    <div><b>Grid backend</b> <span class="muted">— closed-form energy model, top-down map (fast: ms per mission)</span><br><br>
+     <video src="${vid("attempts-with-params.mp4")}" controls muted preload="metadata" style="width:100%"></video></div>
+    <div><b>MuJoCo backend</b> <span class="muted">— rigid-body 3D physics, Skydio X2 model, rotor thrust energy, building collisions</span><br><br>
+     <video src="${vid("attempts-with-params-3d.mp4")}" controls muted preload="metadata" style="width:100%"></video></div>
+   </div></div>
   <div class="card"><b>Hero clip</b> — held-out mission heldout-drone-903 (original set), same model, harness v1 vs v17<br><br>
    <video src="${vid("pair-heldout-drone-903-v1-v17.mp4")}" controls autoplay muted loop></video></div>` :
   (await api("/api/videos")).filter(v => v.includes(BODY)).map(v => `<div class="card"><b>${esc(v)}</b><br><br>
