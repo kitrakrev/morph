@@ -41,8 +41,10 @@ def bootstrap(structure: dict, capabilities: dict | None = None) -> dict:
         "rules": ["Deliver the item to the destination.", "Take the shortest route."],
         "constraints": {"payload_kg_max": body.payload_max_kg, "nofly": "hard", "collision": "hard",
                         **({"altitude_max": 8} if flying else {})},
-        "tool_specs": {**({"fly_to": {"alt": [1, 8], "avoid_nofly": False}} if flying else {}),
-                       **({"move_to": {}} if any(m not in ("flight", "fixed_wing") for m in body.modes) else {})},
+        "tool_specs": ({k: dict(v or {}) for k, v in capabilities.items() if k in ("fly_to", "move_to")}
+                       if capabilities else  # declared limits from the robot's spec file
+                       {**({"fly_to": {"alt": [1, 8], "avoid_nofly": False}} if flying else {}),
+                        **({"move_to": {}} if any(m not in ("flight", "fixed_wing") for m in body.modes) else {})}),
         "beliefs": {"wh_per_cell": {m: {"wheel": 0.15, "tracks": 0.25, "legs": 0.35, "rail": 0.05, "flight": 0.4,
                                      "fixed_wing": 0.25}[m]
                                     for m in body.modes}, "reserve_frac": 0.0},

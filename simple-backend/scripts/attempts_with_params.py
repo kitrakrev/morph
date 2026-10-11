@@ -18,7 +18,7 @@ from sim import tier2
 from engine.multimodal import mission_from_id
 from sim.missions import BODIES
 
-BODY = sys.argv[1] if len(sys.argv) > 1 else "drone"
+BODY = sys.argv[1] if len(sys.argv) > 1 else "drone"  # lineage name (e.g. drone, hybrid, medic-drone)
 MID = sys.argv[2] if len(sys.argv) > 2 else "train-drone-100"
 TAG = "" if BODY == "drone" else f"-{BODY}"
 R.MAX_FRAMES, R.HOLD_S, R.FPS = 40, 3.0, 6
@@ -26,6 +26,13 @@ INK, MUTED, NEW, OK, BAD = "#1d2420", "#6b736e", "#00784C", "#2e7d32", "#c62828"
 FIELDS = ["workflow", "rules", "tool_specs", "beliefs", "budgets", "retrieval_policy"]
 
 mission = mission_from_id(MID)
+SPEC = None
+if "@" in MID:  # robot onboarded from a spec file: apply its structure + capabilities
+    import yaml
+    SPEC = yaml.safe_load(open(f"simple-backend/robots/{MID.split('@')[1]}.yaml"))
+    mission["robots"][0]["structure"] = SPEC["structure"]
+    if SPEC.get("capabilities"):
+        mission["robots"][0]["capabilities"] = SPEC["capabilities"]
 cut = db().llm_cache.find_one({"tier": "claude"}, sort=[("ts", 1)])["ts"] - 60 if BODY == "drone" else 0
 latest = {}
 for t in db().trials.find({"body": BODY, "mission_id": MID, "ts": {"$gte": cut}}).sort("ts", 1):
@@ -52,12 +59,16 @@ def right_panel(ax, n, v, h, prev, t):
                     family="DejaVu Sans Mono" if not bold else "DejaVu Sans", transform=ax.transAxes, va="top")
             y -= gap
 
-    s = BODIES[BODY]
+    s = SPEC["structure"] if SPEC else BODIES[BODY]
     loco = ", ".join(s["locomotion"])
     item = mission["goal"]["deliver"]
     line("INPUTS", MUTED, 10, True)
     line(f"robot    {BODY} · {loco} · {s['mass_kg']} kg · {s['battery_wh']} Wh · payload {s['payload_bay_kg']} kg")
-    line("terrain  3D city · no-fly below z=6 · wind · chargers" + (" · land on open cells only" if BODY == "fixed_wing_vtol" else ""))
+    dims = mission["terrain"]["dims"]
+    line(("terrain  3D city · no-fly below z=6 · wind · chargers" if dims == 3 else f"terrain  2D city · {mission['terrain'].get('difficulty', 'medium')} · rubble · river · chargers")
+         + (" · land on open cells only" if BODY == "fixed_wing_vtol" else ""))
+    if SPEC and SPEC.get("capabilities"):
+        line("caps     " + ", ".join(SPEC["capabilities"]) + " (declared in spec file)")
     line(f"goal     deliver {item['item']} ({item['weight_kg']} kg) · 0 violations · ≥20% reserve")
     line("planner  Claude Haiku (fixed)   evolver  Claude Sonnet")
     y -= 0.02
@@ -68,7 +79,11 @@ def right_panel(ax, n, v, h, prev, t):
         line("   " + fmt(f, h.get(f)), NEW if changed else INK, 9.5, wrap=60, gap=0.028)
     y -= 0.02
     ok = t["score"]["success"]
-    why = t["diagnosis"].split(", energy")[0].replace("not delivered: ", "").split(";")[0]
+    sc = t["score"]
+    if not ok and sc.get("delivered") and not sc.get("deadline_met", True):
+        why = f"missed deadline ({sc['time']} steps > {mission['goal'].get('deadline_steps')})"
+    else:
+        why = t["diagnosis"].split(", energy")[0].replace("not delivered: ", "").split(";")[0]
     line("RESULT  " + ("DELIVERED" if ok else "FAILED: " + why), OK if ok else BAD, 11, True)
     gate = {1: "bootstrap (no gate)", **({8: "accepted in the earlier run"} if BODY == "drone" else {})}.get(
         v, "gate ACCEPTED" if h.get("verdict") == "accepted" else "gate REJECTED → harness discarded")
@@ -108,6 +123,23 @@ WHY = {
         ("result", "same plan shape, routed around the zone → 0 violations, delivered", OK),
         ("gate", "train 4/6 → 6/6, violations 16 → 0, no regression → ACCEPTED; held-out 6/12 → 12/12", OK)]),
 }
+WHY.update({
+    "hybrid": ("No evolution needed", [
+        ("v1", "bootstrap drives to the item, flies the loaded leg — the expensive choice; 2 of 12 held-out missions end below the reserve", BAD),
+        ("why no edit", "train was already 6/6, so the gate had nothing to improve on — evolution only runs on train failures", MUTED),
+        ("held-out", "10/12 (n=12) from bootstrap alone", OK)]),
+    "quadruped": ("No evolution needed", [
+        ("v1", "on this hard-terrain deadline mission the legged body is too slow over rubble → misses the deadline", BAD),
+        ("context", "this mission comes from a hard-terrain probe (n=6, 3/6); on medium terrain v1 scores 12/12 held-out", MUTED),
+        ("why no edit", "the probe was a scoring run, not an evolution run", MUTED)]),
+    "medic-drone": ("No harness won — every edit rejected", [
+        ("input", "robot onboarded from a spec file with declared capabilities (fly_to alt 2–7, pick, drop, charge)", INK),
+        ("v1", "finishes below the battery reserve on this mission; 6/12 held-out", BAD),
+        ("v2–v4", "beliefs + feasibility-check + replan edits — train stayed 3/6, so the gate rejected each", BAD),
+        ("takeaway", "the input pipeline works for a new spec; adaptation for this body did not happen in the runs we had time for", MUTED)]),
+})
+if BODY not in WHY:
+    raise SystemExit("no closing card text for " + BODY)
 title, rows = WHY[BODY]
 fig = plt.figure(figsize=(16, 9), facecolor="#FBFBF8")
 fig.text(0.05, 0.88, title, fontsize=34, fontweight="bold", color=INK)

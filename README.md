@@ -226,6 +226,10 @@ refused by the simulator), and its `terrain`. Bootstrap builds the harness from 
 PYTHONPATH=simple-backend uv run python -m engine.onboard simple-backend/robots/medic-drone.yaml --gens 3
 ```
 
+Bug found and fixed late: the first medic-drone onboarding (lineage `medic-drone`) bootstrapped with the default
+`fly_to` limits instead of its declared ones (the simulator did enforce the declared skill list). It is being
+re-run as `medic-drone-r2` with the fix.
+
 Without a `capabilities` block, capabilities are derived from structure exactly as before (existing results
 re-checked unchanged: drone v17 and fixed-wing v2 both 12/12 held-out).
 
