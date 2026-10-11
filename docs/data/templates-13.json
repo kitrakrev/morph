@@ -1,0 +1,1 @@
+{"primary": ["fly_to(pos=[34, 39, 0], alt=5, avoid_nofly=True)", "pick()", "fly_to(pos=[19, 25, 0], alt=5, avoid_nofly=True)", "drop()"], "fallback": ["fly_to(pos=[33, 36, 0], alt=5, avoid_nofly=True)", "charge()", "fly_to(pos=[31, 36, 0], alt=5, avoid_nofly=True)", "pick()", "fly_to(pos=[39, 21, 0], alt=5, avoid_nofly=True)", "drop()"]}
