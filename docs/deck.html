@@ -66,7 +66,7 @@ html,body{margin:0;height:100%;background:#0a0f0d;overflow:hidden}
 <div style="display:flex;flex-direction:column;gap:14px;border-top:1px solid #CFC9BB;padding:24px 0 0 0">
 <p style="font-size:28px;line-height:1.4;color:#3E4B45"><b>Hard tier</b> (long-range, loaded): 4/6 held-out (n=6), never tuned on</p>
 <p style="font-size:28px;line-height:1.4;color:#3E4B45"><b>19 edits proposed, 2 accepted, 17 rejected</b> — e.g. v14 flew through the no-fly zone 30 times</p>
-<p style="font-size:28px;line-height:1.4;color:#3E4B45"><b>New body, fixed-wing VTOL:</b> 6/12 → 12/12 held-out (n=12) in one generation, 0 violations</p>
+<p style="font-size:28px;line-height:1.4;color:#3E4B45"><b>New body, fixed-wing VTOL:</b> 6/12 → 12/12 held-out (n=12) in one generation: Raindrop flagged no-fly violations, the harness turned avoidance on</p>
 <p style="font-size:28px;line-height:1.4;color:#3E4B45"><b>Quadruped, hexapod:</b> 12/12 from structure alone (n=12 each)</p>
 </div>
 </div>
@@ -109,7 +109,7 @@ html,body{margin:0;height:100%;background:#0a0f0d;overflow:hidden}
 </div>
 <div style="display:flex;flex-direction:column;gap:12px;background:#FFFFFF;padding:36px;border:1px solid #DDD8CC;border-radius:16px">
 <h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:36px;font-weight:600">Could it cheat?</h3>
-<p style="font-size:26px;line-height:1.45;color:#3E4B45">Physics and verifier are locked; held-out missions are hidden from the agent; edits that add violations are rejected (v14: 30 no-fly violations).</p>
+<p style="font-size:26px;line-height:1.45;color:#3E4B45">Physics and verifier are locked; held-out missions are hidden from the agent. The verifier always scores no-fly as a violation, the gate never accepts more, and an edit that turns avoidance off is refused before it runs.</p>
 </div>
 <div style="display:flex;flex-direction:column;gap:12px;background:#FFFFFF;padding:36px;border:1px solid #DDD8CC;border-radius:16px">
 <h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:36px;font-weight:600">Vs. a trained model?</h3>
