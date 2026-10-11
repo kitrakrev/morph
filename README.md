@@ -123,6 +123,9 @@ without retraining, and never promotes a change that adds safety violations **on
   harness cannot learn charger selection (the remaining hard-tier failures). Candidate for a tier-2 expansion.
 - **Memory retrieval hurt twice.** Letting the planner read past episodes (v14, v20) added no-fly violations;
   the gate rejected both.
+- **Failure memory is text-only.** Failures are embedded from their text summaries (voyage-4-lite). Next step:
+  multimodal embeddings of replay frames with voyage-multimodal-3.5, so the harness can match failures by what
+  the trajectory looked like.
 - **Locked safety switches.** v19 tried to turn off no-fly avoidance; the gate rejected it on safety, and the
   legality check now blocks that edit before any run.
 
