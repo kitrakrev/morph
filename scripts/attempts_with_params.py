@@ -1,7 +1,9 @@
 """Left: map replay of each attempt on one mission. Right: inputs + the CURRENT harness parameters,
-changed fields highlighted, result and gate verdict. Usage: PYTHONPATH=. uv run python scripts/attempts_with_params.py"""
+changed fields highlighted, result and gate verdict.
+Usage: PYTHONPATH=. uv run python scripts/attempts_with_params.py [body] [mission_id]"""
 import json
 import subprocess
+import sys
 import textwrap
 
 import matplotlib
@@ -13,15 +15,18 @@ from matplotlib import animation
 import sim.render as R
 from engine.store import db
 from sim import tier2
-from sim.missions import BODIES, make_mission
+from engine.multimodal import mission_from_id
+from sim.missions import BODIES
 
-MID, BODY = "train-drone-100", "drone"
+BODY = sys.argv[1] if len(sys.argv) > 1 else "drone"
+MID = sys.argv[2] if len(sys.argv) > 2 else "train-drone-100"
+TAG = "" if BODY == "drone" else f"-{BODY}"
 R.MAX_FRAMES, R.HOLD_S, R.FPS = 40, 3.0, 6
 INK, MUTED, NEW, OK, BAD = "#1d2420", "#6b736e", "#00784C", "#2e7d32", "#c62828"
 FIELDS = ["workflow", "rules", "tool_specs", "beliefs", "budgets", "retrieval_policy"]
 
-mission = make_mission(BODY, 100, "train")
-cut = db().llm_cache.find_one({"tier": "claude"}, sort=[("ts", 1)])["ts"] - 60
+mission = mission_from_id(MID)
+cut = db().llm_cache.find_one({"tier": "claude"}, sort=[("ts", 1)])["ts"] - 60 if BODY == "drone" else 0
 latest = {}
 for t in db().trials.find({"body": BODY, "mission_id": MID, "ts": {"$gte": cut}}).sort("ts", 1):
     latest[t["harness_version"]] = t
@@ -48,10 +53,12 @@ def right_panel(ax, n, v, h, prev, t):
             y -= gap
 
     s = BODIES[BODY]
+    loco = ", ".join(s["locomotion"])
+    item = mission["goal"]["deliver"]
     line("INPUTS", MUTED, 10, True)
-    line(f"robot    drone · rotors · {s['mass_kg']} kg · {s['battery_wh']} Wh · payload {s['payload_bay_kg']} kg")
-    line("terrain  3D city · no-fly below z=6 · wind · chargers")
-    line("goal     deliver radio · 0 violations · ≥20% reserve")
+    line(f"robot    {BODY} · {loco} · {s['mass_kg']} kg · {s['battery_wh']} Wh · payload {s['payload_bay_kg']} kg")
+    line("terrain  3D city · no-fly below z=6 · wind · chargers" + (" · land on open cells only" if BODY == "fixed_wing_vtol" else ""))
+    line(f"goal     deliver {item['item']} ({item['weight_kg']} kg) · 0 violations · ≥20% reserve")
     line("planner  Claude Haiku (fixed)   evolver  Claude Sonnet")
     y -= 0.02
     line(f"HARNESS v{v}  ·  attempt {n} of {len(versions)}", INK, 13, True, gap=0.045)
@@ -63,9 +70,9 @@ def right_panel(ax, n, v, h, prev, t):
     ok = t["score"]["success"]
     why = t["diagnosis"].split(", energy")[0].replace("not delivered: ", "").split(";")[0]
     line("RESULT  " + ("DELIVERED" if ok else "FAILED: " + why), OK if ok else BAD, 11, True)
-    gate = {1: "bootstrap (no gate)", 8: "accepted in the earlier run"}.get(
+    gate = {1: "bootstrap (no gate)", **({8: "accepted in the earlier run"} if BODY == "drone" else {})}.get(
         v, "gate ACCEPTED" if h.get("verdict") == "accepted" else "gate REJECTED → harness discarded")
-    line(gate, OK if (h.get("verdict") == "accepted" and v != 8) else (MUTED if v in (1, 8) else BAD), 11, True)
+    line(gate, OK if (h.get("verdict") == "accepted" and not (BODY == "drone" and v == 8)) else (MUTED if v == 1 or (BODY == "drone" and v == 8) else BAD), 11, True)
 
 
 files, prev = [], None
@@ -77,8 +84,8 @@ for n, v in enumerate(versions, 1):
     ok = t["score"]["success"]
     panel = R.Panel(fig, gs[0], sim, mission, f"attempt {n} · harness v{v}", "", ok)
     right_panel(fig.add_subplot(gs[1]), n, v, h, prev, t)
-    fig.suptitle("Same mission, same model — only the harness changes", fontsize=15, fontweight="bold", color=INK)
-    out = f"out/attempts/p{n}.mp4"
+    fig.suptitle(f"{BODY} · {MID} — same mission, same model, only the harness changes", fontsize=15, fontweight="bold", color=INK)
+    out = f"out/attempts/p{TAG}{n}.mp4"
     ts = R._timeline([panel])
     anim = animation.FuncAnimation(fig, lambda i: panel.draw(ts[i]) or [], frames=len(ts), blit=False)
     anim.save(out, writer=animation.FFMpegWriter(fps=R.FPS, bitrate=3000), dpi=110)
@@ -86,8 +93,8 @@ for n, v in enumerate(versions, 1):
     files.append(out)
     prev = h
     print(out, v)
-open("out/attempts/plist.txt", "w").write("".join(f"file '{f.split('/')[-1]}'\n" for f in files))
-subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "concat", "-safe", "0", "-i", "plist.txt", "-vf",
-                "fps=24,format=yuv420p", "-c:v", "libx264", "-crf", "20", "../attempts-with-params.mp4"],
+open(f"out/attempts/plist{TAG}.txt", "w").write("".join(f"file '{f.split('/')[-1]}'\n" for f in files))
+subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "concat", "-safe", "0", "-i", f"plist{TAG}.txt", "-vf",
+                "fps=24,format=yuv420p", "-c:v", "libx264", "-crf", "20", f"../attempts-with-params{TAG}.mp4"],
                cwd="out/attempts", check=True)
-print("out/attempts-with-params.mp4")
+print(f"out/attempts-with-params{TAG}.mp4")

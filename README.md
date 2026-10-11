@@ -194,6 +194,7 @@ Not used: MuJoCo, real robots, any training or fine-tuning.
 |---|---|
 | [morph-demo.mp4](docs/out/morph-demo.mp4) | 1-minute narrated demo (ElevenLabs) |
 | [attempts-with-params.mp4](docs/out/attempts-with-params.mp4) | Map on the left, inputs + the live harness parameters on the right; each attempt highlights the fields that changed, then shows result and gate verdict |
+| [attempts-with-params-fixed_wing_vtol.mp4](docs/out/attempts-with-params-fixed_wing_vtol.mp4) | Same view for the fixed-wing VTOL on held-out mission 902: v1 (no-fly violations) → v2 (avoidance on + rule) |
 | [attempts-side-by-side.mp4](docs/out/attempts-side-by-side.mp4) | Every attempt on one mission, side by side: v1 and v8 fail (drive), v15 and v16 die mid-air at altitude 3 (gate rejected), v17 flies low, lands to charge, and delivers ([sequential version](docs/out/attempts-mission-100.mp4)) |
 | [evolution-timeline.mp4](docs/out/evolution-timeline.mp4) | Start inputs (robot, terrain, goal, models), then every version's changed parameters old → new, prediction vs measured, scores and gate verdict — drone v1 → v8 → v14 (rejected) → v17, fixed-wing v1 → v2 |
 | [drone held-out 903, v1 vs v17](docs/out/pair-heldout-drone-903-v1-v17.mp4) | Starting harness drives and fails; evolved harness flies and delivers |

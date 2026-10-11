@@ -82,10 +82,12 @@ const pages = {
   <div class="card"><b>The loop</b><pre>mission → planner (fixed model) → workflow graph → simulate (true physics) → locked verifier
    → Raindrop signal + Atlas failure memory → evolution agent proposes ONE bounded edit + prediction
    → gate: train ↑, safety not worse, no regression, cost per success → new version (transaction) → repeat</pre></div>
-  <div class="card"><b>Every attempt, with the harness it ran</b> — map on the left; inputs and the live harness parameters on the right, changed fields highlighted, then the result and the gate's verdict<br><br>
+  ${BODY === "drone" ? `<div class="card"><b>Every attempt, with the harness it ran</b> — map on the left; inputs and the live harness parameters on the right, changed fields highlighted, then the result and the gate's verdict<br><br>
    <video src="${vid("attempts-with-params.mp4")}" controls muted preload="metadata"></video></div>
   <div class="card"><b>Hero clip</b> — held-out mission heldout-drone-903 (original set), same model, harness v1 vs v17<br><br>
-   <video src="${vid("pair-heldout-drone-903-v1-v17.mp4")}" controls autoplay muted loop></video></div>`;
+   <video src="${vid("pair-heldout-drone-903-v1-v17.mp4")}" controls autoplay muted loop></video></div>` :
+  (await api("/api/videos")).filter(v => v.includes(BODY)).map(v => `<div class="card"><b>${esc(v)}</b><br><br>
+   <video src="${vid(v)}" controls muted preload="metadata"></video></div>`).join("") || `<div class="card muted">No replay clips rendered for ${esc(BODY)} yet.</div>`}`;
  },
 
  async how() {
@@ -220,8 +222,10 @@ const pages = {
    <div class="card"><b>compare</b> <select id="wsel">${opts}</select><div id="wright"></div></div></div>`;
  },
  async replays() {
-  const vids = (await api("/api/videos")).filter(v => v.startsWith("pair-") || v.startsWith("evolution-") || v.startsWith("attempts-")).sort((a, b) => (b.startsWith("attempts-with") * 3 + b.startsWith("attempts-side") * 2 + b.startsWith("evolution-")) - (a.startsWith("attempts-with") * 3 + a.startsWith("attempts-side") * 2 + a.startsWith("evolution-")));
-  return `<h2>Replays</h2><p class="sub">Same mission, same planner model, two harness versions, synced on simulation time. Battery bar turns red under the reserve line; altitude strip below.</p>` +
+  const others = ["fixed_wing_vtol", "hybrid", "quadruped", "hexapod", "medic-drone"].filter(b => b !== BODY);
+  const vids = (await api("/api/videos")).filter(v => v.startsWith("pair-") || v.startsWith("evolution-") || v.startsWith("attempts-"))
+    .filter(v => v.startsWith("evolution-") || (BODY === "drone" ? !others.some(o => v.includes(o)) : v.includes(BODY))).sort((a, b) => (b.startsWith("attempts-with") * 3 + b.startsWith("attempts-side") * 2 + b.startsWith("evolution-")) - (a.startsWith("attempts-with") * 3 + a.startsWith("attempts-side") * 2 + a.startsWith("evolution-")));
+  return `<h2>Replays — ${esc(BODY)}</h2><p class="sub">Same mission, same planner model, two harness versions, synced on simulation time. Battery bar turns red under the reserve line; altitude strip below.</p>` +
    vids.map(v => `<div class="card"><b>${esc(v)}</b><br><br><video src="${vid(v)}" controls muted preload="metadata"></video></div>`).join("");
  },
  async runs() {
