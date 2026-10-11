@@ -408,7 +408,7 @@ def _hud(img: np.ndarray, title: str, f: dict, speed: float, fonts) -> np.ndarra
 
 
 def render3d(sim: Sim, path: str, title: str = "", follow: str | None = None, panel=None,
-             max_seconds: float = MAX_SECONDS) -> str:
+             max_seconds: float = MAX_SECONDS, compose=None, hud: bool = True) -> str:
     """Render `sim.trace` (from a MujocoSim run) to an MP4 at `path`.
 
     `panel(frame, progress) -> PIL.Image` (height H) is drawn to the right of the 3D view."""
@@ -447,13 +447,14 @@ def render3d(sim: Sim, path: str, title: str = "", follow: str | None = None, pa
     duration = trace[-1]["t"]
     stride = max(1, math.ceil(len(trace) / (max_seconds * FPS)))
     pw = panel(trace[0], 0.0).width if panel else 0
+    size = compose(np.zeros((H, W, 3), np.uint8), trace[0], 0, 0.0).size if compose else (W + pw, H)
     speed = stride * (duration / max(len(trace), 1)) * FPS
     renderer = mujoco.Renderer(model, H, W)
     cam = mujoco.MjvCamera()
     cam.type = mujoco.mjtCamera.mjCAMERA_FREE
     fonts = (_font(22), _font(17))
     ff = subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24",
-                           "-s", f"{W + pw}x{H}", "-r", str(FPS), "-i", "-", "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                           "-s", f"{size[0]}x{size[1]}", "-r", str(FPS), "-i", "-", "-c:v", "libx264", "-pix_fmt", "yuv420p",
                            "-crf", "20", "-movflags", "+faststart", path], stdin=subprocess.PIPE)
     phase = {rid: 0.0 for rid in kinds}
     angle = {n: 0.0 for n in jadr}
@@ -523,15 +524,17 @@ def render3d(sim: Sim, path: str, title: str = "", follow: str | None = None, pa
             look = target if look is None else look + (target - look) * min(1.0, 0.08 * stride)
             air = target[2] > 0.5
             cam.lookat[:] = look
-            cam.distance = 8.0 if air else 6.5
-            cam.elevation = -38 if air else -42
+            cam.distance = 13.0 if air else 6.5
+            cam.elevation = -80 if air else -42  # steep when airborne: buildings never block the view
             cam.azimuth = 135 + 12 * math.sin(f["t"] / 25)
             renderer.update_scene(data, cam)
-            img = _hud(renderer.render(), title, f, speed, fonts)
-            if panel:
+            img = _hud(renderer.render(), title, f, speed, fonts) if hud else renderer.render()
+            if compose:
+                img = np.asarray(compose(img, f, k, 1.0 if final else k / len(trace)).convert("RGB"))
+            elif panel:
                 img = np.hstack([img, np.asarray(panel(f, 1.0 if final else k / len(trace)).convert("RGB"))])
             buf = np.ascontiguousarray(img).tobytes()
-            for _ in range(int(FPS * 2.5) if final and panel else 1):  # hold on the result
+            for _ in range(int(FPS * 2.5) if final and (panel or compose) else 1):  # hold on the result
                 ff.stdin.write(buf)
     finally:
         ff.stdin.close()
