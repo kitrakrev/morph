@@ -101,7 +101,7 @@ fixed no-fly routing, not fixed-wing-specific behaviour; the planner already cru
 
 - **Hard tier** (long-range loaded drone missions where a direct flight fails and only charge-after-pickup
   works): v17, never evolved on these, scores train 5/6 (n=6) and held-out **4/6** (n=6). Three further edits
-  were all rejected by the gate for adding violations — including one that turned off no-fly avoidance (v19).
+  were all rejected by the gate: each delivered less and added safety violations (e.g. v19 raised the minimum altitude).
 - **Transfer:** quadruped and held-out hexapod score **12/12 held-out (n=12) from bootstrap** on medium
   single-delivery missions: generations to adapt = 0 for ground bodies vs 1 accepted edit for the drone.
   Cold vs warm (taxonomic) transfer is implemented (`engine/transfer.py`) but **not measured**: there was no
@@ -125,6 +125,11 @@ lessons transfer**; safety violations on promoted versions.
 
 ## Scope and limitations
 
+**Scope in one line:** Morph adapts its harness to new robots described by a spec file, within a known set of
+movement types (wheels, legs, rotors, tracks, rail, fixed-wing), on simulated terrain, for delivery missions,
+with a fixed planner model. A new movement type or goal type is a human-written plugin; the harness then learns
+to use it. It can expand what it does, never how it is judged.
+
 What Morph claims, narrowly: for **high-level mission planning** of robots built from a known movement
 vocabulary (wheels, legs, rotors, tracks, rail) on a known grid map, Morph adapts the harness to a new body
 without retraining, and never promotes a change that adds safety violations **on the tested missions**.
@@ -143,11 +148,12 @@ without retraining, and never promotes a change that adds safety violations **on
   harness cannot learn charger selection (the remaining hard-tier failures). Candidate for a tier-2 expansion.
 - **Memory retrieval hurt twice.** Letting the planner read past episodes (v14, v20) added no-fly violations;
   the gate rejected both.
-- **Failure memory is text-only.** Failures are embedded from their text summaries (voyage-4-lite). Next step:
-  multimodal embeddings of replay frames with voyage-multimodal-3.5, so the harness can match failures by what
-  the trajectory looked like.
-- **Locked safety switches.** v19 tried to turn off no-fly avoidance; the gate rejected it on safety, and the
-  legality check now blocks that edit before any run.
+- **Multimodal failure memory is an add-on, not yet in the gate's loop.** `engine/multimodal.py` embeds each failed
+  trial's final replay frame together with its failure text using `voyage-multimodal-3.5` (Atlas Embedding API)
+  into `failures_mm`. An image-only query with a mid-air battery-death frame retrieves other mid-air battery
+  deaths (cosine 0.81). The evolution agent still retrieves failures by text.
+- **Locked safety switches.** The legality check blocks any edit that turns no-fly avoidance off once it is on
+  (a guard added today; no run attempted it).
 
 ### How the harness may expand (tiered by risk)
 
@@ -170,12 +176,14 @@ does, never how it is judged.**
 | **Vector Search + Atlas Search + `$rankFusion`** | hybrid retrieval of similar past failures for the evolution agent |
 | Time-series collection | per-trial metrics for curves |
 | Checkpoints collection | runner state per workflow node; a killed run resumes |
-| Memory collections (semantic / episodic / procedural / taxonomic) | Agent Engine–shaped memory; user_id = body category |
+| **Atlas Agent Engine memory** | episodic / procedural / semantic / taxonomic memory per body (live; Atlas-collection fallback) |
 | LLM response cache (unique key) | deterministic re-runs within the free-model budget |
 | **Change streams** | live feed in the evidence viewer (`viewer/server.py`): trials, new versions, gate decisions |
 
-Atlas Agent Engine: CLI signed in and a memory-only project scaffolded; the memory server needs a Voyage
-key and was not provisioned today, so memory runs on plain collections with the same API shape.
+**Atlas Agent Engine memory is live.** The hosted memory server (memory-only project, Voyage `voyage-4-large`
+embeddings, service-account auth via `agent-engine-sdk-memory`) stores the harness's episodic, procedural, semantic
+and taxonomic memory; trial episodes from mission runs land there. Measured: saves ~290–600 ms, searches ~310 ms.
+If the server is unreachable, `engine/memory.py` falls back to Atlas collections with the same API and says so.
 
 ## Built today vs used
 
@@ -187,11 +195,35 @@ telemetry, reports.
 headless mode (`claude -p`), OpenRouter free models (earlier runs), Raindrop (Python SDK), numpy, matplotlib, ffmpeg, pymongo.
 Not used: MuJoCo, real robots, any training or fine-tuning.
 
+## Videos
+
+| Video | What it shows |
+|---|---|
+| [morph-demo.mp4](docs/out/morph-demo.mp4) | 1-minute narrated demo (ElevenLabs) |
+| [attempts-with-params.mp4](docs/out/attempts-with-params.mp4) | Map on the left, inputs + the live harness parameters on the right; each attempt highlights the fields that changed, then shows result and gate verdict |
+| [attempts-side-by-side.mp4](docs/out/attempts-side-by-side.mp4) | Every attempt on one mission, side by side: v1 and v8 fail (drive), v15 and v16 die mid-air at altitude 3 (gate rejected), v17 flies low, lands to charge, and delivers ([sequential version](docs/out/attempts-mission-100.mp4)) |
+| [evolution-timeline.mp4](docs/out/evolution-timeline.mp4) | Start inputs (robot, terrain, goal, models), then every version's changed parameters old → new, prediction vs measured, scores and gate verdict — drone v1 → v8 → v14 (rejected) → v17, fixed-wing v1 → v2 |
+| [drone held-out 903, v1 vs v17](docs/out/pair-heldout-drone-903-v1-v17.mp4) | Starting harness drives and fails; evolved harness flies and delivers |
+| [hard tier, v19 vs v17](docs/out/pair-train-drone-101-medium-long_range-v19-v17.mp4) | Why the gate rejected v19: same long-range mission, v19 dies mid-air, v17 delivers |
+| [fixed-wing held-out 900 / 902, v1 vs v2](docs/out/pair-heldout-fixed_wing_vtol-902-v1-v2.mp4) | No-fly violations before, clean routing after Raindrop-driven edit |
+
 ## Evidence viewer (localhost)
 
 `PYTHONPATH=. uv run python viewer/server.py` → http://localhost:8765 — read-only on Atlas. Sidebar: overview,
 results (k/n per split), lineage and diffs with gate checks and retrieved failures, workflow graph v1 vs vN,
 side-by-side replays, runs, what evolves, evaluation matrix, live change-stream feed, built on, scope.
+
+## Onboard a robot from a spec file
+
+A robot arrives as a YAML spec: its `structure`, the `capabilities` its controller exposes (anything else is
+refused by the simulator), and its `terrain`. Bootstrap builds the harness from it; the loop evolves it.
+
+```bash
+PYTHONPATH=. uv run python -m engine.onboard robots/medic-drone.yaml --gens 3
+```
+
+Without a `capabilities` block, capabilities are derived from structure exactly as before (existing results
+re-checked unchanged: drone v17 and fixed-wing v2 both 12/12 held-out).
 
 ## Run it
 

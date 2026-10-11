@@ -49,6 +49,8 @@ FOREACH = ('For a list of points write {"foreach": "$TARGETS", "do": [steps usin
 
 def plan_template(h: dict, body: dict, terrain_summary: dict | None = None, goal: dict | None = None) -> dict:
     harness_view = {k: h.get(k) for k in ("rules", "constraints", "tool_specs", "skills")}
+    if h.get("manifest"):
+        harness_view["allowed_skills_only"] = sorted(h["manifest"])
     reports = {}
     if "terrain_summary" in h.get("reports_read", []) and terrain_summary:
         reports["terrain_summary"] = terrain_summary

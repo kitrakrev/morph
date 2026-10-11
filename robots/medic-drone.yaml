@@ -1,0 +1,14 @@
+# A robot arrives as a spec file: its structure, the skills its controller exposes, and where it works.
+id: medic-drone
+structure:
+  locomotion: {rotors: 4}
+  mass_kg: 3.0
+  battery_wh: 70
+  payload_bay_kg: 1.2
+  sensors: [camera, lidar_20m]
+capabilities:          # declared by the robot's controller; anything else is refused by the simulator
+  fly_to: {alt: [2, 7], avoid_nofly: false}
+  pick: {}
+  drop: {}
+  charge: {}
+terrain: {dims: 3, difficulty: medium}

@@ -26,6 +26,7 @@ class Robot:
     carrying: list[str] = field(default_factory=list)
     alive: bool = True
     drained_wh: float = 0.0
+    capabilities: dict | None = None  # declared skill manifest; None = derived from body
 
     @property
     def airborne(self) -> bool:
@@ -258,6 +259,9 @@ class Sim:
         rid = call.get("robot")
         if rid not in self.robots:
             return self._fail(str(rid), name, "unknown robot")
+        caps = self.robots[rid].capabilities
+        if caps is not None and name not in caps:
+            return self._fail(rid, name, f"{name} is not in this robot's declared capabilities")
         try:
             return getattr(self, name)(rid, **call.get("args", {}))
         except TypeError as e:
