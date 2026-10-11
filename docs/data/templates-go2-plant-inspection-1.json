@@ -1,0 +1,1 @@
+{"primary": ["move_to(pos=[16, 4])", "foreach(list=[[9, 0], [5, 8]], var=$TARGET, steps=[{'skill': 'move_to', 'args': {'pos': '$TARGET'}}, {'skill': 'scan', 'args': {}}])", "move_to(pos=[16, 4])"]}

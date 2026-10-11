@@ -1,0 +1,1 @@
+{"primary": ["scan()", "move_to(pos=[8, 33, 0])", "pick()", "fly_to(pos=[38, 15, 0], alt=3, avoid_nofly=True)", "drop()"]}

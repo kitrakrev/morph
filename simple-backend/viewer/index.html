@@ -72,16 +72,17 @@ let feedTimer, BODY = QS.get("body") || "drone", BACKEND = QS.get("backend") || 
 const BACKENDS = {
   simple: {label: "Simple (grid)", desc: "Grid simulator with a closed-form energy model, top-down map — fast (ms per mission). All evolution and scoring runs here.",
            bodies: null, videos: null},
-  mujoco: {label: "MuJoCo (3D)", desc: "Rigid-body 3D physics (Skydio X2 model, rotor-thrust energy, building collisions). Replays the same harness programs; evolution and the gate's verdicts come from the simple backend.",
-           bodies: ["drone", "fixed_wing_vtol"],
+  mujoco: {label: "MuJoCo (3D)", desc: "Rigid-body 3D physics with real robot models (Unitree Go2/G1, Skydio X2): rotor and rolling-resistance energy, building collisions. Go2, X2 and G1 were evolved on this backend; drone and fixed-wing are grid-evolved harnesses replayed in MuJoCo.",
+           bodies: ["go2-plant-inspection", "x2-city-survey", "g1-warehouse-delivery", "drone", "fixed_wing_vtol"],
            videos: {drone: ["attempts-with-params-3d.mp4"], fixed_wing_vtol: ["mujoco-fixed_wing_vtol.mp4"]}},
 };
-const mujocoBanner = () => BACKEND === "mujoco" ? `<div class="card" style="border-left:4px solid #4b57c8"><b>MuJoCo backend:</b> these numbers come from the simple backend, where evolution and the gate run. MuJoCo replays the same harness programs in 3D — see Overview / Replays.</div>` : "";
+const REPLAY_ONLY = ["drone", "fixed_wing_vtol"];
+const mujocoBanner = () => BACKEND === "mujoco" && REPLAY_ONLY.includes(BODY) ? `<div class="card" style="border-left:4px solid #4b57c8"><b>MuJoCo backend:</b> these numbers come from the simple backend, where evolution and the gate run. MuJoCo replays the same harness programs in 3D — see Overview / Replays.</div>` : "";
 const setURL = p => history.replaceState(null, "", `?backend=${BACKEND}&body=${BODY}#${p}`);
 
 const pages = {
  async overview() {
-  if (BACKEND === "mujoco") {
+  if (BACKEND === "mujoco" && REPLAY_ONLY.includes(BODY)) {
     const clips = BACKENDS.mujoco.videos[BODY] || [];
     const side = BODY === "drone" ? `<div class="card"><b>Same programs, both backends</b> — grid (left) vs MuJoCo 3D (right)<br><br>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:14px">
@@ -89,7 +90,7 @@ const pages = {
       <div><b>MuJoCo (3D)</b><br><br><video src="${vid("attempts-with-params-3d.mp4")}" controls muted preload="metadata" style="width:100%"></video></div></div></div>` :
       clips.map(v => `<div class="card"><b>${esc(v)}</b><br><br><video src="${vid(v)}" controls muted preload="metadata"></video></div>`).join("");
     return `<h2>MuJoCo backend · ${esc(BODY)}</h2><p class="sub">${BACKENDS.mujoco.desc}</p>${side}
-      <div class="card muted">Results, lineage and the gate's verdicts for ${esc(BODY)} are on the simple backend — switch the backend selector to see them.</div>`;
+      <div class="card muted">${esc(BODY)} was evolved on the simple backend; this is its harness replayed in MuJoCo. Results, lineage and verdicts: switch the backend selector to Simple.</div>`;
   }
   const rows = (await api(`/api/results?body=${BODY}`)).filter(r => r.era === "current");
   const v = n => rows.find(r => r.version === n);
@@ -247,7 +248,7 @@ const pages = {
     const clips = BACKENDS.mujoco.videos[BODY] || [];
     return `<h2>Replays — MuJoCo · ${esc(BODY)}</h2><p class="sub">${BACKENDS.mujoco.desc}</p>` +
       (clips.map(v => `<div class="card"><b>${esc(v)}</b><br><br><video src="${vid(v)}" controls muted preload="metadata"></video></div>`).join("") ||
-       `<div class="card muted">No MuJoCo clips for ${esc(BODY)}.</div>`);
+       `<div class="card muted">No MuJoCo clip published for ${esc(BODY)} yet — results, lineage and runs are on the other pages.</div>`);
   }
   const others = ["fixed_wing_vtol", "hybrid", "quadruped", "hexapod", "medic-drone"].filter(b => b !== BODY);
   const vids = (await api("/api/videos")).filter(v => v.startsWith("pair-") || v.startsWith("evolution-") || v.startsWith("attempts-"))
@@ -342,7 +343,8 @@ function fillBodies() {
 $("#ksel").innerHTML = Object.entries(BACKENDS).map(([k, b]) => `<option value="${k}" ${k === BACKEND ? "selected" : ""}>${b.label}</option>`).join("");
 $("#ksel").onchange = () => { BACKEND = $("#ksel").value; fillBodies(); const p = location.hash.slice(1) || "overview"; setURL(p); go(p); };
 $("#bsel").onchange = () => { BODY = $("#bsel").value; const p = location.hash.slice(1) || "overview"; setURL(p); go(p); };
-api("/api/bodies").then(B => { ALL_BODIES = B; fillBodies(); }).catch(() => { ALL_BODIES = ["drone"]; fillBodies(); });
+api("/api/backends").then(M => { BACKENDS.simple.bodies = M.simple; BACKENDS.mujoco.bodies = M.mujoco; fillBodies(); })
+  .catch(() => api("/api/bodies").then(B => { ALL_BODIES = B.filter(b => !BACKENDS.mujoco.bodies.slice(0, 3).includes(b)); fillBodies(); }));
 go(location.hash.slice(1) || "overview");
 </script>
 </body>

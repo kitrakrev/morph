@@ -1,0 +1,1 @@
+[{"version": 1, "verdict": "bootstrap", "fields": [], "era": "current", "splits": {"heldout": {"ok": 12, "n": 12, "viol": 0}, "train:variant": {"ok": 15, "n": 18, "viol": 0}}, "reason": null, "prediction": null, "rationale": null, "checks": null, "measured": null}]

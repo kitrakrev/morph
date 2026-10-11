@@ -13,8 +13,12 @@ dest = Path(sys.argv[1])
 (dest / "data").mkdir(parents=True, exist_ok=True)
 (dest / "out").mkdir(exist_ok=True)
 w = lambda name, obj: (dest / "data" / f"{name}.json").write_text(json.dumps(obj, default=str))
-BODIES = ["drone", "fixed_wing_vtol"]
+MUJOCO = ["go2-plant-inspection", "x2-city-survey", "g1-warehouse-delivery"]  # evolved on the MuJoCo backend
+SKIP = {"hexapod-cold", "hexapod-warm"}  # transfer probes, not shown
+BODIES = [b for b in server.bodies() if b not in SKIP]
 w("bodies", BODIES)
+w("backends", {"simple": [b for b in BODIES if b not in MUJOCO],
+               "mujoco": [b for b in MUJOCO if b in BODIES] + ["drone", "fixed_wing_vtol"]})
 lin = []
 for b in BODIES:  # drone keeps the un-suffixed files the page loads first
     sfx = "" if b == "drone" else f"-{b}"

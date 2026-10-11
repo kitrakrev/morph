@@ -152,6 +152,11 @@ class Handler(SimpleHTTPRequestHandler):
         q = {k: v[0] for k, v in parse_qs(u.query).items()}
         body = q.get("body", "drone")
         try:
+            if u.path == "/api/backends":
+                mj = ["go2-plant-inspection", "x2-city-survey", "g1-warehouse-delivery"]
+                bs = [b for b in bodies() if b not in ("hexapod-cold", "hexapod-warm")]
+                return self._json({"simple": [b for b in bs if b not in mj],
+                                   "mujoco": [b for b in mj if b in bs] + ["drone", "fixed_wing_vtol"]})
             if u.path == "/api/bodies":
                 return self._json(bodies())
             if u.path == "/api/results":
