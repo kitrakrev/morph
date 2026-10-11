@@ -21,7 +21,7 @@ class UnsupportedBody(ValueError):
     pass
 
 
-def bootstrap(structure: dict) -> dict:
+def bootstrap(structure: dict, capabilities: dict | None = None) -> dict:
     """Initial harness derived from structure only: plausible but naive beliefs.
 
     Refuses bodies outside the known movement vocabulary instead of guessing."""
@@ -51,6 +51,7 @@ def bootstrap(structure: dict) -> dict:
         "model_routing": {"plan": "cheap"},
         "budgets": {"replans": 0, "tool_calls": 40, "tier2_runs": 1},
         "skills": [],
+        **({"manifest": {k: v for k, v in capabilities.items() if k in PRIMITIVES}} if capabilities else {}),
         "prediction": None, "verdict": "bootstrap", "diff": None, "created": time.time(),
     }
 

@@ -136,9 +136,10 @@ without retraining, and never promotes a change that adds safety violations **on
   harness cannot learn charger selection (the remaining hard-tier failures). Candidate for a tier-2 expansion.
 - **Memory retrieval hurt twice.** Letting the planner read past episodes (v14, v20) added no-fly violations;
   the gate rejected both.
-- **Failure memory is text-only.** Failures are embedded from their text summaries (voyage-4-lite). Next step:
-  multimodal embeddings of replay frames with voyage-multimodal-3.5, so the harness can match failures by what
-  the trajectory looked like.
+- **Multimodal failure memory is an add-on, not yet in the gate's loop.** `engine/multimodal.py` embeds each failed
+  trial's final replay frame together with its failure text using `voyage-multimodal-3.5` (Atlas Embedding API)
+  into `failures_mm`. An image-only query with a mid-air battery-death frame retrieves other mid-air battery
+  deaths (cosine 0.81). The evolution agent still retrieves failures by text.
 - **Locked safety switches.** The legality check blocks any edit that turns no-fly avoidance off once it is on
   (a guard added today; no run attempted it).
 
@@ -187,6 +188,18 @@ Not used: MuJoCo, real robots, any training or fine-tuning.
 `PYTHONPATH=. uv run python viewer/server.py` → http://localhost:8765 — read-only on Atlas. Sidebar: overview,
 results (k/n per split), lineage and diffs with gate checks and retrieved failures, workflow graph v1 vs vN,
 side-by-side replays, runs, what evolves, evaluation matrix, live change-stream feed, built on, scope.
+
+## Onboard a robot from a spec file
+
+A robot arrives as a YAML spec: its `structure`, the `capabilities` its controller exposes (anything else is
+refused by the simulator), and its `terrain`. Bootstrap builds the harness from it; the loop evolves it.
+
+```bash
+PYTHONPATH=. uv run python -m engine.onboard robots/medic-drone.yaml --gens 3
+```
+
+Without a `capabilities` block, capabilities are derived from structure exactly as before (existing results
+re-checked unchanged: drone v17 and fixed-wing v2 both 12/12 held-out).
 
 ## Run it
 

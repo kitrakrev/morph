@@ -16,16 +16,38 @@ from engine.store import db
 from sim.missions import BODIES, mission_set
 
 
+def _terrain(spec: dict | None) -> dict:
+    t = (spec or {}).get("terrain", {})
+    return {k: t[k] for k in ("difficulty",) if k in t}
+
+
+def patch(missions: list[dict], spec: dict | None) -> list[dict]:
+    """Apply a robot spec file: its structure and declared capabilities replace the preset body's."""
+    if not spec:
+        return missions
+    for m in missions:
+        r = m["robots"][0]
+        r["structure"] = spec["structure"]
+        if spec.get("capabilities"):
+            r["capabilities"] = spec["capabilities"]
+        m["id"] = f"{m['id']}@{spec['id']}"
+    return missions
+
+
 def _brief(e: dict) -> str:
     return f"{e['success']}/{e['n']} (n={e['n']}) viol={e['violations']}"
 
 
-def adapt_curve(body: str, lineage: str, start: str = "cold", gens: int = 3, target: float = 0.8) -> dict:
+def adapt_curve(body: str, lineage: str, start: str = "cold", gens: int = 3, target: float = 0.8,
+                spec: dict | None = None) -> dict:
     """Generations until held-out success >= target, for a cold or warm (transfer) start."""
     from engine import transfer
-    heldout = mission_set(body, "heldout", 12)
+    heldout = patch(mission_set(body, "heldout", 12, **_terrain(spec)), spec)
     if not harness.latest(lineage):
-        if start == "warm":
+        if spec:
+            h = harness.bootstrap(spec["structure"], spec.get("capabilities"))
+            h["body_type"] = lineage
+        elif start == "warm":
             h, src = transfer.warm_bootstrap(BODIES[body], lineage)
             print(f"[{lineage}] warm start from {src}")
         else:
@@ -42,7 +64,7 @@ def adapt_curve(body: str, lineage: str, start: str = "cold", gens: int = 3, tar
         if ho["success"] >= target * ho["n"] or g == gens:
             break
         before = h["version"]
-        run(body, 1, lineage=lineage)
+        run(body, 1, lineage=lineage, spec=spec)
         if harness.latest(lineage)["version"] == before:  # rejected: one more proposal counts as a generation
             continue
     reached = next((c["gen"] for c in curve if c["heldout"] >= target * c["n"]), None)
@@ -50,11 +72,14 @@ def adapt_curve(body: str, lineage: str, start: str = "cold", gens: int = 3, tar
 
 
 def run(body: str, gens: int, n_train: int = 6, n_reg: int = 4, max_rejects: int = 3,
-        mtype: str = "single", difficulty: str = "medium", lineage: str | None = None) -> list[dict]:
+        mtype: str = "single", difficulty: str = "medium", lineage: str | None = None,
+        spec: dict | None = None) -> list[dict]:
     lineage = lineage or body
-    train = mission_set(body, "train", n_train, difficulty, mtype)
+    if spec:
+        difficulty = _terrain(spec).get("difficulty", difficulty)
+    train = patch(mission_set(body, "train", n_train, difficulty, mtype), spec)
     # regression always guards the original task (medium / single), so a new skill can't break the old one
-    reg = mission_set(body, "regression", n_reg)
+    reg = patch(mission_set(body, "regression", n_reg), spec)
     parent = harness.latest(lineage)
     if not parent:
         h = harness.bootstrap(BODIES[body])
