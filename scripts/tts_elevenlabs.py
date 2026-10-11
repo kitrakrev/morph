@@ -16,9 +16,12 @@ if not KEY:
 H = {"xi-api-key": KEY}
 VID = Path("out/video")
 want = sys.argv[1] if len(sys.argv) > 1 else "George"
+TEMPO = float(sys.argv[2]) if len(sys.argv) > 2 else 1.0  # speed-up so the video stays under 60 s
 PREMADE = {"george": "JBFqnCBsd6RMkjVDRZzb", "rachel": "21m00Tcm4TlvDq8ikWAM", "adam": "pNInz6obpgDQGcFmaJgB"}
 voices = requests.get("https://api.elevenlabs.io/v1/voices", headers=H, timeout=30).json().get("voices", [])
-voice = next((v for v in voices if v["name"].lower().startswith(want.lower())), None)
+voice = next((v for v in voices if v["name"].lower().startswith(want.lower()) or v["voice_id"] == want), None)
+if not voice and len(want) == 20:  # a voice id from the shared library (e.g. Neel, Indian accent)
+    voice = {"name": want, "voice_id": want}
 if not voice:  # key without voices_read permission: use a premade voice by id
     voice = {"name": want, "voice_id": PREMADE.get(want.lower(), PREMADE["george"])}
 print("voice:", voice["name"], voice["voice_id"])
@@ -33,6 +36,7 @@ for i, text in enumerate(lines, 1):
         raise SystemExit(f"line {i}: HTTP {r.status_code} {r.text[:200]}")
     mp3 = VID / f"n{i}.mp3"
     mp3.write_bytes(r.content)
-    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(mp3), str(VID / f"n{i}.aiff")], check=True)
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(mp3), "-filter:a", f"atempo={TEMPO}",
+                    str(VID / f"n{i}.aiff")], check=True)
     print(f"n{i}: {len(text)} chars")
 subprocess.run(["bash", "build.sh"], cwd=VID, check=True)
