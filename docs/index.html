@@ -50,6 +50,7 @@
 <body>
 <nav>
   <h1>Morph</h1><div class="tag">the fleet that learns new bodies</div>
+  <div style="margin:0 6px 10px"><label class="tag" for="ksel">physics backend</label><br><select id="ksel" style="width:100%"></select></div>
   <div style="margin:0 6px 14px"><label class="tag" for="bsel">robot body</label><br><select id="bsel" style="width:100%"></select></div>
   <a data-p="overview">Overview</a><a data-p="how">How it works</a><a data-p="results">Results</a><a data-p="lineage">Lineage &amp; edits</a>
   <a data-p="workflow">Workflow graph</a><a data-p="replays">Replays</a><a data-p="runs">Runs</a>
@@ -66,10 +67,30 @@ const $ = s => document.querySelector(s), api = p => fetch(STATIC ? staticPath(p
 const vid = n => (STATIC ? "out/" : "/out/") + n;
 const esc = s => String(s ?? "").replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
 const frac = x => x ? `${x.ok}/${x.n}` : "—";
-let feedTimer, BODY = new URLSearchParams(location.search).get("body") || "drone";
+const QS = new URLSearchParams(location.search);
+let feedTimer, BODY = QS.get("body") || "drone", BACKEND = QS.get("backend") || "simple";
+const BACKENDS = {
+  simple: {label: "Simple (grid)", desc: "Grid simulator with a closed-form energy model, top-down map — fast (ms per mission). All evolution and scoring runs here.",
+           bodies: null, videos: null},
+  mujoco: {label: "MuJoCo (3D)", desc: "Rigid-body 3D physics (Skydio X2 model, rotor-thrust energy, building collisions). Replays the same harness programs; evolution and the gate's verdicts come from the simple backend.",
+           bodies: ["drone", "fixed_wing_vtol"],
+           videos: {drone: ["attempts-with-params-3d.mp4"], fixed_wing_vtol: ["mujoco-fixed_wing_vtol.mp4"]}},
+};
+const mujocoBanner = () => BACKEND === "mujoco" ? `<div class="card" style="border-left:4px solid #4b57c8"><b>MuJoCo backend:</b> these numbers come from the simple backend, where evolution and the gate run. MuJoCo replays the same harness programs in 3D — see Overview / Replays.</div>` : "";
+const setURL = p => history.replaceState(null, "", `?backend=${BACKEND}&body=${BODY}#${p}`);
 
 const pages = {
  async overview() {
+  if (BACKEND === "mujoco") {
+    const clips = BACKENDS.mujoco.videos[BODY] || [];
+    const side = BODY === "drone" ? `<div class="card"><b>Same programs, both backends</b> — grid (left) vs MuJoCo 3D (right)<br><br>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:14px">
+      <div><b>Simple (grid)</b><br><br><video src="${vid("attempts-with-params.mp4")}" controls muted preload="metadata" style="width:100%"></video></div>
+      <div><b>MuJoCo (3D)</b><br><br><video src="${vid("attempts-with-params-3d.mp4")}" controls muted preload="metadata" style="width:100%"></video></div></div></div>` :
+      clips.map(v => `<div class="card"><b>${esc(v)}</b><br><br><video src="${vid(v)}" controls muted preload="metadata"></video></div>`).join("");
+    return `<h2>MuJoCo backend · ${esc(BODY)}</h2><p class="sub">${BACKENDS.mujoco.desc}</p>${side}
+      <div class="card muted">Results, lineage and the gate's verdicts for ${esc(BODY)} are on the simple backend — switch the backend selector to see them.</div>`;
+  }
   const rows = (await api(`/api/results?body=${BODY}`)).filter(r => r.era === "current");
   const v = n => rows.find(r => r.version === n);
   const h1 = v(1)?.splits?.heldout, hb = rows.filter(r => r.splits.heldout && r.verdict === "accepted").pop();
@@ -82,13 +103,8 @@ const pages = {
   <div class="card"><b>The loop</b><pre>mission → planner (fixed model) → workflow graph → simulate (true physics) → locked verifier
    → Raindrop signal + Atlas failure memory → evolution agent proposes ONE bounded edit + prediction
    → gate: train ↑, safety not worse, no regression, cost per success → new version (transaction) → repeat</pre></div>
-  ${BODY === "drone" ? `<div class="card"><b>Every attempt, with the harness it ran — on both physics backends</b> — inputs and the live harness parameters on the right, changed fields highlighted, then the result and the gate's verdict. Same programs, same verdicts.<br><br>
-   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:14px">
-    <div><b>Grid backend</b> <span class="muted">— closed-form energy model, top-down map (fast: ms per mission)</span><br><br>
-     <video src="${vid("attempts-with-params.mp4")}" controls muted preload="metadata" style="width:100%"></video></div>
-    <div><b>MuJoCo backend</b> <span class="muted">— rigid-body 3D physics, Skydio X2 model, rotor thrust energy, building collisions</span><br><br>
-     <video src="${vid("attempts-with-params-3d.mp4")}" controls muted preload="metadata" style="width:100%"></video></div>
-   </div></div>
+  ${BODY === "drone" ? `<div class="card"><b>Every attempt, with the harness it ran</b> — inputs and the live harness parameters on the right, changed fields highlighted, then the result and the gate's verdict. Same programs, same verdicts.<br><br>
+   <video src="${vid("attempts-with-params.mp4")}" controls muted preload="metadata"></video></div>
   <div class="card"><b>Hero clip</b> — held-out mission heldout-drone-903 (original set), same model, harness v1 vs v17<br><br>
    <video src="${vid("pair-heldout-drone-903-v1-v17.mp4")}" controls autoplay muted loop></video></div>` :
   (await api("/api/videos")).filter(v => v.includes(BODY)).map(v => `<div class="card"><b>${esc(v)}</b><br><br>
@@ -188,7 +204,7 @@ const pages = {
     const failed = Object.entries(r.checks || {}).filter(([k, v]) => !v).map(([k]) => WHY[k] || k);
     const verdict = r.verdict === "accepted" ? "<span class='ok'>Kept:</span> passed every gate check."
       : `<span class='bad'>Blocked:</span> ${failed.join("; ") || esc(r.reason || "")}.`;
-    return `${verdict}${r.rationale ? `<div class="muted">Agent's reason: ${esc(r.rationale)}</div>` : ""}`; };
+    return `${mujocoBanner()}${verdict}${r.rationale ? `<div class="muted">Agent's reason: ${esc(r.rationale)}</div>` : ""}`; };
   const pm = r => r.prediction ? `${r.prediction.train_success_delta >= 0 ? "+" : ""}${r.prediction.train_success_delta} / ${r.measured?.train_success_delta >= 0 ? "+" : ""}${r.measured?.train_success_delta ?? "?"}` : "";
   const tr = r => `<tr><td>v${r.version}</td><td>${r.verdict === "accepted" ? '<span class="pill acc">accepted</span>' : r.verdict === "rejected" ? '<span class="pill rej">rejected</span>' : esc(r.verdict)}</td>
    <td>${esc(r.fields.join(", "))}</td><td>${frac(r.splits.train)}</td><td>${frac(r.splits.regression)}</td><td><b>${frac(r.splits.heldout)}</b></td>
@@ -204,7 +220,7 @@ const pages = {
  async lineage() {
   const only = (new URLSearchParams(location.search).get("v") || "").split(",").filter(Boolean).map(Number);
   const L = (await api(`/api/lineage?body=${BODY}`)).filter(h => !only.length || only.includes(h.version));
-  return `<h2>Lineage &amp; edits</h2><p class="sub">Every candidate the evolution agent proposed, its diff, the gate's checks, and the failures it retrieved from Atlas ($rankFusion).</p>` +
+  return `${mujocoBanner()}<h2>Lineage &amp; edits</h2><p class="sub">Every candidate the evolution agent proposed, its diff, the gate's checks, and the failures it retrieved from Atlas ($rankFusion).</p>` +
    L.map(h => `<div class="card"><b>v${h.version}</b> ← v${h.parent ?? "—"} &nbsp; ${h.verdict === "accepted" ? '<span class="pill acc">accepted</span>' : h.verdict === "rejected" ? '<span class="pill rej">rejected</span>' : `<span class="pill">${esc(h.verdict)}</span>`}
     <span class="muted">${esc(h.model || "")}</span>
     ${h.rationale ? `<p>${esc(h.rationale)}</p>` : ""}
@@ -222,20 +238,27 @@ const pages = {
       `<div><b>rules</b></div><pre>${esc((h.rules||[]).join("\n"))}</pre>`; };
   setTimeout(async () => { $("#wleft").innerHTML = await detail(L[0]); const s = $("#wsel");
     const draw = async () => { $("#wright").innerHTML = await detail(L.find(x => x.version == s.value)); }; s.onchange = draw; draw(); });
-  return `<h2>Workflow graph</h2><p class="sub">The step graph is data the harness evolves. New steps are highlighted.</p>
+  return `${mujocoBanner()}<h2>Workflow graph</h2><p class="sub">The step graph is data the harness evolves. New steps are highlighted.</p>
    <div class="grid2"><div class="card"><b>v1 (bootstrap)</b><div id="wleft"></div></div>
    <div class="card"><b>compare</b> <select id="wsel">${opts}</select><div id="wright"></div></div></div>`;
  },
  async replays() {
+  if (BACKEND === "mujoco") {
+    const clips = BACKENDS.mujoco.videos[BODY] || [];
+    return `<h2>Replays — MuJoCo · ${esc(BODY)}</h2><p class="sub">${BACKENDS.mujoco.desc}</p>` +
+      (clips.map(v => `<div class="card"><b>${esc(v)}</b><br><br><video src="${vid(v)}" controls muted preload="metadata"></video></div>`).join("") ||
+       `<div class="card muted">No MuJoCo clips for ${esc(BODY)}.</div>`);
+  }
   const others = ["fixed_wing_vtol", "hybrid", "quadruped", "hexapod", "medic-drone"].filter(b => b !== BODY);
   const vids = (await api("/api/videos")).filter(v => v.startsWith("pair-") || v.startsWith("evolution-") || v.startsWith("attempts-"))
+    .filter(v => !v.includes("-3d") && !v.startsWith("mujoco-"))
     .filter(v => v.startsWith("evolution-") || (BODY === "drone" ? !others.some(o => v.includes(o)) : v.includes(BODY))).sort((a, b) => (b.startsWith("attempts-with") * 3 + b.startsWith("attempts-side") * 2 + b.startsWith("evolution-")) - (a.startsWith("attempts-with") * 3 + a.startsWith("attempts-side") * 2 + a.startsWith("evolution-")));
   return `<h2>Replays — ${esc(BODY)}</h2><p class="sub">Same mission, same planner model, two harness versions, synced on simulation time. Battery bar turns red under the reserve line; altitude strip below.</p>` +
    vids.map(v => `<div class="card"><b>${esc(v)}</b><br><br><video src="${vid(v)}" controls muted preload="metadata"></video></div>`).join("");
  },
  async runs() {
   const T = await api(`/api/trials?body=${BODY}`);
-  return `<h2>Runs — ${BODY}</h2><p class="sub">Each trial: the program the planner produced, the verifier's verdict, and the diagnosis stored in Atlas.</p>
+  return `${mujocoBanner()}<h2>Runs — ${BODY}</h2><p class="sub">Each trial: the program the planner produced, the verifier's verdict, and the diagnosis stored in Atlas.</p>
    <div class="card"><table><tr><th>mission</th><th>set</th><th>split</th><th>result</th><th>energy Wh</th><th>violations</th><th>actions</th><th>diagnosis</th></tr>
    ${T.map(t => `<tr><td>${esc(t.mission)}</td><td>${esc(t.set)}</td><td>${t.split}</td><td class="${t.ok?"ok":"bad"}">${t.ok?"delivered":"failed"}</td><td>${t.energy}</td><td>${t.viol}</td><td><code>${esc(t.actions)}</code></td><td class="muted">${esc(t.diagnosis)}</td></tr>`).join("")}</table></div>`;
  },
@@ -246,7 +269,7 @@ const pages = {
    ["constraints","hard limits (payload, altitude); nofly + collision locked to hard"],["tool_specs","per-tool parameter bounds, e.g. fly_to alt range, avoid_nofly"],
    ["beliefs","the harness's own energy model and reserve (not the true physics)"],["reports_read","diagnostics the planner sees"],
    ["retrieval_policy","how many episodes / procedures from memory"],["model_routing","which model tier plans"],["budgets","replans, tool calls, tier2 runs"],["skills","composed skills built from primitives"]];
-  return `<h2>What evolves</h2><p class="sub">Exactly the fields in <code>engine/harness.py: EDITABLE</code>. ✓ = accepted, ✗ = rejected.</p>
+  return `${mujocoBanner()}<h2>What evolves</h2><p class="sub">Exactly the fields in <code>engine/harness.py: EDITABLE</code>. ✓ = accepted, ✗ = rejected.</p>
    <div class="card"><table><tr><th>field</th><th>controls</th><th>changed in</th></tr>${F.map(([f,d]) => `<tr><td><code>${f}</code></td><td>${d}</td><td>${(changed[f]||["—"]).join(" ")}</td></tr>`).join("")}</table></div>
    <div class="card"><b>Never changeable:</b> simulator and true physics, verifier, scoring, primitive list, held-out data, locked constraints (no-fly hard, collisions forbidden). Edit budget per candidate: 3 fields at v1–v2, 2 at v3–v4, then 1.</div>`;
  },
@@ -307,11 +330,19 @@ async function go(p) {
   document.querySelectorAll("nav a").forEach(a => a.classList.toggle("on", a.dataset.p === p));
   $("#main").innerHTML = '<p class="muted">loading…</p>';
   try { $("#main").innerHTML = await pages[p](); } catch (e) { $("#main").innerHTML = `<p class="bad">${esc(e)}</p>`; }
-  history.replaceState(null, "", "#" + p);
+  setURL(p);
 }
 document.querySelectorAll("nav a[data-p]").forEach(a => a.onclick = () => go(a.dataset.p));
-api("/api/bodies").then(B => { const sel = $("#bsel"); sel.innerHTML = B.map(b => `<option ${b === BODY ? "selected" : ""}>${b}</option>`).join("");
-  sel.onchange = () => { BODY = sel.value; const p = location.hash.slice(1) || "overview"; history.replaceState(null, "", `?body=${BODY}#${p}`); go(p); }; }).catch(() => {});
+let ALL_BODIES = [];
+function fillBodies() {
+  const list = BACKENDS[BACKEND].bodies || ALL_BODIES;
+  if (!list.includes(BODY)) BODY = list[0];
+  $("#bsel").innerHTML = list.map(b => `<option ${b === BODY ? "selected" : ""}>${b}</option>`).join("");
+}
+$("#ksel").innerHTML = Object.entries(BACKENDS).map(([k, b]) => `<option value="${k}" ${k === BACKEND ? "selected" : ""}>${b.label}</option>`).join("");
+$("#ksel").onchange = () => { BACKEND = $("#ksel").value; fillBodies(); const p = location.hash.slice(1) || "overview"; setURL(p); go(p); };
+$("#bsel").onchange = () => { BODY = $("#bsel").value; const p = location.hash.slice(1) || "overview"; setURL(p); go(p); };
+api("/api/bodies").then(B => { ALL_BODIES = B; fillBodies(); }).catch(() => { ALL_BODIES = ["drone"]; fillBodies(); });
 go(location.hash.slice(1) || "overview");
 </script>
 </body>
