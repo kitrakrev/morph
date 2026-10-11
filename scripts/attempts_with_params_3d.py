@@ -156,7 +156,7 @@ def end_card(outcomes, seconds=9):
     wins = [o for o in outcomes if o["score"]["success"] and o["h"].get("verdict") in ("accepted", "bootstrap")]
     if not wins:
         return None
-    w, base = wins[0], outcomes[0]
+    w, base = wins[-1], outcomes[0]  # the final accepted harness that delivers
     ev = db().evaluations.find_one({"body": BODY, "version": w["v"]}) or {}
     im = Image.new("RGB", (CW, CH), BG)
     d = ImageDraw.Draw(im)
@@ -220,6 +220,9 @@ for n, v in enumerate(versions, 1):
     sim = tier2.simulate({**mission, "physics": "mujoco"}, t["program"])
     score = verifier.score(mission, sim)
     trace = [f for f in sim.trace if f["robot"] == mission["robots"][0]["id"]]
+    if not trace:  # nothing moved: one still pose so the minimap / altitude strip have a point
+        r0 = sim.robots[mission["robots"][0]["id"]]
+        trace = [{"t": 0.0, "pos": [r0.pos[0] + .5, r0.pos[1] + .5, 0.0]}]
 
     def compose(view, f, k, progress, n=n, v=v, h=h, prev=prev, t=t, score=score, sim=sim, trace=trace):
         canvas = Image.new("RGB", (CW, CH), BG)

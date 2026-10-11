@@ -413,8 +413,17 @@ def render3d(sim: Sim, path: str, title: str = "", follow: str | None = None, pa
 
     `panel(frame, progress) -> PIL.Image` (height H) is drawn to the right of the 3D view."""
     trace = getattr(sim, "trace", None)
-    if not trace:
+    if trace is None:
         raise ValueError("no MuJoCo trace: run the program with physics='mujoco'")
+    if not trace:  # the program never moved a robot (e.g. its first skill failed): show it standing still
+        errs = [e["reason"] for e in sim.events if e["kind"] == "skill_error"]
+        label = "no movement: " + (errs[0] if errs else "empty plan")
+        for rid, r in sim.robots.items():
+            p = list(cell_center(r.pos)) if len(r.pos) == 3 else [r.pos[0] + .5, (r.pos[1] if len(r.pos) > 1 else 0) + .5, 0.0]
+            trace = [{"t": round(i * 0.04, 3), "robot": rid, "kind": r.body.kind, "mode": r.body.modes[0], "pos": p,
+                      "quat": [1, 0, 0, 0], "act": 0.0, "battery": r.battery / r.body.battery_wh,
+                      "carrying": list(r.carrying), "label": label} for i in range(75)]
+            break
     kinds = {rid: r.body.kind for rid, r in sim.robots.items()}
     real = {rid: m for rid, r in sim.robots.items() if (m := real_model(r.body))}
     xml, anims = scene_xml(sim, kinds, frozenset(real))
