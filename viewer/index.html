@@ -70,12 +70,12 @@ let feedTimer, BODY = new URLSearchParams(location.search).get("body") || "drone
 
 const pages = {
  async overview() {
-  const rows = (await api("/api/results")).filter(r => r.era === "current");
+  const rows = (await api(`/api/results?body=${BODY}`)).filter(r => r.era === "current");
   const v = n => rows.find(r => r.version === n);
   const h1 = v(1)?.splits?.heldout, hb = rows.filter(r => r.splits.heldout && r.verdict === "accepted").pop();
   return `<h2>Plug in a robot. The harness does the rest.</h2>
   <p class="sub">Robot fleets change bodies. Morph's harness rewrites its own rules, limits and workflow from its own failures, and keeps a change only when a locked verifier proves it on missions the agent never saw. The model never changes.</p>
-  <div class="card"><div class="muted">Held-out drone missions, same planner model (Claude Haiku)</div>
+  <div class="card"><div class="muted">Held-out ${esc(BODY)} missions, same planner model (Claude Haiku)</div>
    <div class="big">${frac(h1)} → ${frac(hb?.splits?.heldout)}</div>
    <div>v1 (bootstrap from structure) → v${hb?.version ?? "?"} (evolved) · violations: <b>${hb?.splits?.heldout?.viol ?? "—"}</b> · n = ${hb?.splits?.heldout?.n ?? "—"} held-out missions on unseen maps</div>
    ${hb?.splits?.["heldout:hard"] ? `<div class="muted" style="margin-top:6px">Reported separately — hard tier (long-range loaded missions, never tuned on): v${hb.version} ${frac(hb.splits["heldout:hard"])} held-out, ${hb.splits["heldout:hard"].viol} violations.</div>` : ""}</div>
