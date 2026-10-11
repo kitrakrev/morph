@@ -20,8 +20,11 @@ def _brief(e: dict) -> str:
     return f"{e['success']}/{e['n']} (n={e['n']}) viol={e['violations']}"
 
 
-def run(body: str, gens: int, n_train: int = 6, n_reg: int = 4, max_rejects: int = 3) -> list[dict]:
-    train, reg = mission_set(body, "train", n_train), mission_set(body, "regression", n_reg)
+def run(body: str, gens: int, n_train: int = 6, n_reg: int = 4, max_rejects: int = 3,
+        mtype: str = "single", difficulty: str = "medium") -> list[dict]:
+    train = mission_set(body, "train", n_train, difficulty, mtype)
+    # regression always guards the original task (medium / single), so a new skill can't break the old one
+    reg = mission_set(body, "regression", n_reg)
     parent = harness.latest(body) or harness.save(harness.bootstrap(BODIES[body]))
     p_train, p_reg = evaluate(parent, train), evaluate(parent, reg)
     print(f"[{body}] v{parent['version']} train {_brief(p_train)} reg {_brief(p_reg)}")
@@ -73,5 +76,7 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("body")
     ap.add_argument("--gens", type=int, default=4)
+    ap.add_argument("--mtype", default="single")
+    ap.add_argument("--difficulty", default="medium")
     a = ap.parse_args()
-    run(a.body, a.gens)
+    run(a.body, a.gens, mtype=a.mtype, difficulty=a.difficulty)

@@ -33,7 +33,7 @@ MODE = {"rover": "wheel", "tracked": "tracks", "quadruped": "legs", "hexapod": "
         "drone": "flight"}
 DEFAULT_DIMS = {"drone": 3, "railcart": 1}
 DIFFICULTIES = ("easy", "medium", "hard")
-MISSION_TYPES = ("single", "heavy", "deadline", "multi_stop", "relay")
+MISSION_TYPES = ("single", "heavy", "deadline", "multi_stop", "relay", "long_range")
 ITEMS = [("water", 4.0), ("radio", 0.8), ("supply_kit", 2.5), ("blanket", 1.2)]
 SEED_RANGES = {"train": range(100, 200), "regression": range(200, 300), "heldout": range(900, 1000)}
 
@@ -73,7 +73,7 @@ def make_mission(body_kind: str, seed: int, split: str, dims: int | None = None,
     for _ in range(30):
         pts = [lift(cells[int(i)]) for i in rng.choice(len(cells), n_points, replace=False)]
         a, b, c = pts[:3]
-        if _dist(b, c) < 15 or not reach(a, b) or not reach(b, c):
+        if _dist(b, c) < (45 if mtype == "long_range" else 15) or not reach(a, b) or not reach(b, c):
             continue
         rid = f"{body_kind}-1"
         robots = [{"id": rid, "structure": spec, "position": list(a)}]
@@ -92,14 +92,38 @@ def make_mission(body_kind: str, seed: int, split: str, dims: int | None = None,
         if mtype == "deadline":
             deadline = int(1.3 * (_dist(a, b) + _dist(b, c)) * (2 if mode == "legs" else 1)) + 20
         suffix = "" if (difficulty, mtype) == ("medium", "single") else f"-{difficulty}-{mtype}"
-        return {
+        m = {
             "id": f"{split}-{body_kind}-{seed}{suffix}", "split": split, "body": body_kind,
             "difficulty": difficulty, "mtype": mtype, "terrain": terrain, "robots": robots, "items": items,
             "goal": {"deliver": deliveries[0], **({"deliveries": deliveries} if len(deliveries) > 1 else {}),
                      "constraints": ["no_nofly", "battery_reserve"], "reserve_frac": 0.2,
                      "deadline_steps": deadline},
         }
+        if mtype == "long_range" and not _needs_recharge(m):
+            continue
+        return m
     return None
+
+
+def _needs_recharge(m: dict) -> bool:
+    """Hard tier filter (uses TRUE physics, like the solvability check): a direct loaded flight fails,
+    but charging between pickup and destination succeeds."""
+    from sim import tier2, verifier  # local import: generator-only use of the true simulator
+    r, it, to = m["robots"][0]["id"], m["items"][0], m["goal"]["deliver"]["to"]
+    sim = build_sim(m)
+    if not sim.world.chargers:
+        return False
+    a = {"alt": 1, "avoid_nofly": True}
+    direct = [{"robot": r, "skill": "fly_to", "args": {"pos": it["pos"], **a}}, {"robot": r, "skill": "pick", "args": {"item": it["id"]}},
+              {"robot": r, "skill": "fly_to", "args": {"pos": to, **a}}, {"robot": r, "skill": "drop", "args": {"item": it["id"]}}]
+    if verifier.score(m, tier2.simulate(m, direct))["success"]:
+        return False
+    for c in sorted(sim.world.chargers, key=lambda c: _dist(c, it["pos"]) + _dist(c, to))[:2]:
+        hop = direct[:2] + [{"robot": r, "skill": "fly_to", "args": {"pos": list(c), **a}},
+                            {"robot": r, "skill": "charge", "args": {}}] + direct[2:]
+        if verifier.score(m, tier2.simulate(m, hop))["success"]:
+            return True
+    return False
 
 
 def mission_set(body_kind: str, split: str, n: int, difficulty: str = "medium", mtype: str = "single",

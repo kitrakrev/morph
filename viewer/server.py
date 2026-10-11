@@ -107,6 +107,17 @@ def watch_changes():
             time.sleep(5)
 
 
+def templates(body: str, version: int) -> dict:
+    """One example program per template kind (primary / fallback) actually run for this version."""
+    out = {}
+    for which in ("primary", "fallback"):
+        t = db().trials.find_one({"body": body, "harness_version": version, "which": which}, sort=[("ts", -1)])
+        if t:
+            out[which] = [f"{c['skill']}({', '.join(f'{k}={v}' for k, v in c['args'].items() if k != 'item')})"
+                          for c in t["program"]]
+    return out
+
+
 def videos() -> list[str]:
     return sorted(p.name for p in (ROOT / "out").glob("*.mp4"))
 
@@ -141,6 +152,8 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._json(trials(body, int(q["version"]) if "version" in q else None, q.get("split")))
             if u.path == "/api/videos":
                 return self._json(videos())
+            if u.path == "/api/templates":
+                return self._json(templates(body, int(q.get("version", 1))))
             if u.path == "/api/feed":
                 return self._json(list(FEED))
             if u.path == "/api/matrix":

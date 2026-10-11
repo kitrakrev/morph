@@ -28,13 +28,21 @@
   .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:16px } video { width:100%; border-radius:8px; border:1px solid var(--line) }
   select { padding:5px; border-radius:6px } .feed div { padding:5px 0; border-bottom:1px solid var(--line); font-family:ui-monospace,Menlo,monospace; font-size:12px }
   svg text { fill:var(--ink) }
+  .dg .box { fill:var(--panel); stroke:#8a8f8b; stroke-width:1.2 } .dg .fixed { fill:#eef1f6; stroke:#5b6b8c }
+  .dg .evo { fill:#e9f6ee; stroke:#2e7d32 } .dg .atlas { fill:#e7f3ee; stroke:#00684a; stroke-width:1.6 }
+  .dg .rd { fill:#eef0fb; stroke:#4b57c8 } .dg .gate { fill:#fff6e5; stroke:#c77700; stroke-width:1.6 }
+  .dg .lane { fill:none; stroke:var(--line); stroke-dasharray:4 4 } .dg .t { font-size:12px } .dg .s { font-size:10.5px; fill:var(--muted) }
+  .dg .h { font-size:13px; font-weight:700 } .dg .ar { stroke:#7a7f7b; stroke-width:1.4; fill:none; marker-end:url(#ah) }
+  .dg .arg { stroke:#2e7d32 } .dg .arr { stroke:#c62828; stroke-dasharray:5 3 } .dg .lbl { font-size:10px; fill:var(--muted) }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .dg .fixed { fill:#1e2533 } :root:not([data-theme="light"]) .dg .evo { fill:#16291d }
+    :root:not([data-theme="light"]) .dg .atlas { fill:#12281f } :root:not([data-theme="light"]) .dg .rd { fill:#1b1e33 } :root:not([data-theme="light"]) .dg .gate { fill:#2e2414 } }
   @media (max-width:800px) { body { flex-direction:column } nav { width:100%; height:auto; position:static } .grid2 { grid-template-columns:1fr } main { padding:16px } }
 </style>
 </head>
 <body>
 <nav>
   <h1>Morph</h1><div class="tag">the fleet that learns new bodies</div>
-  <a data-p="overview">Overview</a><a data-p="results">Results</a><a data-p="lineage">Lineage &amp; edits</a>
+  <a data-p="overview">Overview</a><a data-p="how">How it works</a><a data-p="results">Results</a><a data-p="lineage">Lineage &amp; edits</a>
   <a data-p="workflow">Workflow graph</a><a data-p="replays">Replays</a><a data-p="runs">Runs</a>
   <a data-p="evolves">What evolves</a><a data-p="matrix">Evaluation matrix</a><a data-p="feed">Live feed</a>
   <a data-p="stack">Built on</a><a data-p="scope">Scope &amp; limits</a>
@@ -62,6 +70,66 @@ const pages = {
   <div class="card"><b>Hero clip</b> — same mission, same model, harness v1 vs v17<br><br>
    <video src="/out/pair-heldout-drone-903-v1-v17.mp4" controls autoplay muted loop></video></div>`;
  },
+
+ async how() {
+  const B = (x,y,w,h,cls,title,sub) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="8" class="box ${cls}"/>
+    <text x="${x+w/2}" y="${y+(sub?18:h/2+4)}" text-anchor="middle" class="t"><tspan font-weight="600">${title}</tspan></text>` +
+    (sub||[]).map((l,i)=>`<text x="${x+w/2}" y="${y+34+i*13}" text-anchor="middle" class="s">${l}</text>`).join("");
+  const A = (d,cls="",lbl="",lx=0,ly=0) => `<path d="${d}" class="ar ${cls}"/>` + (lbl?`<text x="${lx}" y="${ly}" class="lbl">${lbl}</text>`:"");
+  const svg = `<svg class="dg" viewBox="0 0 1100 900" width="100%" role="img" aria-label="Morph system diagram">
+   <defs><marker id="ah" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="#7a7f7b"/></marker></defs>
+   <text x="20" y="24" class="h">INPUT (the only thing a user supplies)</text>
+   ${B(20,34,330,62,"",'Robot structure + terrain + goal',['rotors / legs / wheels, mass, battery, payload','map seed + difficulty, deliver item to target'])}
+   ${A("M350,65 L410,65")}
+   ${B(410,34,250,62,"",'Bootstrap',['derives harness v1 from structure','refuses unknown locomotion'])}
+   ${A("M660,65 L730,65")}
+   ${B(730,24,350,84,"evo",'Harness vN  (evolvable DATA, versioned in Atlas)',['workflow graph · rules · constraints · tool_specs','beliefs (energy model, reserve) · reports_read','retrieval_policy · model_routing · budgets · skills'])}
+
+   <rect x="10" y="128" width="1080" height="330" rx="10" class="lane"/>
+   <text x="20" y="148" class="h">LOOP 1 — run missions with harness vN (fixed code executes the harness's workflow graph)</text>
+   ${B(20,165,190,70,"",'Planner (Claude Haiku)',['fixed model all day','1 plan template / version'])}
+   ${A("M905,108 L905,130 L115,130 L115,165")} <text x="560" y="125" class="lbl">rules, tool_specs, memory per retrieval_policy</text>
+   ${A("M210,200 L250,200")}
+   ${B(250,165,170,70,"",'Compile per mission',['fill $ITEM_POS $DEST $CHARGER','clamp to tool_specs'])}
+   ${A("M420,200 L460,200")}
+   ${B(460,165,150,70,"evo",'tier1_check',['feasibility <1 s','uses harness BELIEFS'])}
+   ${A("M610,190 L700,190","arg","pass",640,184)}
+   ${A("M535,235 L535,280","arr","fail & budgets.replans≥1",545,262)}
+   ${B(450,280,170,56,"evo",'replan',['switch to fallback template'])}
+   ${A("M620,308 L700,222","arg")}
+   ${B(700,165,170,70,"fixed",'tier2_sim  🔒',['TRUE physics','energy, altitude, wind'])}
+   ${A("M870,200 L910,200")}
+   ${B(910,165,170,70,"fixed",'Verifier  🔒',['delivered? violations?','reserve, deadline'])}
+   ${A("M995,235 L995,360")}
+   ${B(800,360,280,82,"atlas",'MongoDB Atlas',['trials · failures (autoEmbed) · episodic memory','metrics (time-series) · checkpoints (resume)','held-out outcomes never reach agent memory'])}
+   ${A("M800,400 L640,400")}
+   ${B(400,365,240,70,"rd",'Raindrop',['event per trial + signals: battery_death,','nofly_violation, reserve_breach, delivered'])}
+   <text x="20" y="390" class="s">Not in workflow v1: tier1_check and replan were</text>
+   <text x="20" y="404" class="s">added by the evolution agent (v8), then rules (v17).</text>
+
+   <rect x="10" y="478" width="1080" height="400" rx="10" class="lane"/>
+   <text x="20" y="498" class="h">LOOP 2 — evolve the harness (on plateau or when train isn't saturated)</text>
+   ${B(20,515,250,92,"atlas",'Retrieve evidence from Atlas',['$rankFusion = autoEmbed vector','+ keyword search over failures','action sequences of failed trials'])}
+   ${A("M940,442 L940,470 L145,470 L145,515")}
+   ${A("M270,560 L320,560")}
+   ${B(320,515,250,92,"",'Evolution agent (Claude Sonnet)',['proposes ONE edit: ≤3 / 2 / 1 fields','by lineage age, + numeric prediction','sees train/regression only, never held-out'])}
+   ${A("M570,560 L620,560")}
+   ${B(620,515,200,92,"evo",'Candidate vN+1',['apply edit to a copy','validate: locked fields,','primitives only'])}
+   ${A("M820,560 L870,560")}
+   ${B(870,515,210,92,"",'Run Loop 1 on candidate',['train missions (+ hard tier)','regression = original task','same planner model'])}
+   ${A("M975,607 L975,650")}
+   ${B(640,650,440,110,"gate",'GATE  🔒  (all must pass)',['legal edit · train strictly ↑ · safety violations not worse','no regression on original missions','cost = tool calls per successful delivery ≤ parent × (1.1 + 0.1·gain)','verdict + evaluation written in ONE Atlas transaction'])}
+   ${A("M640,690 L470,690","arg","accept",560,684)}
+   ${B(260,655,210,70,"evo",'Promote → harness vN+1',['parent link + diff','becomes the new baseline'])}
+   ${A("M860,760 L860,800","arr","reject",870,790)}
+   ${B(640,800,440,60,"",'Rejected: logged with reason; agent sees it next round',['e.g. v14: +retrieval → 30 no-fly violations → blocked'])}
+   ${A("M260,690 L60,690 L60,30 L170,30","arg")} <text x="66" y="460" class="lbl" transform="rotate(-90 66 460)">new baseline feeds Loop 1</text>
+   ${B(80,790,480,70,"fixed",'Held-out scoring (after acceptance only) 🔒',['12 missions on unseen maps · never used for selection','reported with n · drone: v1 0/12 → v17 12/12, 0 violations'])}
+  </svg>`;
+  return `<h2>How it works</h2><p class="sub">Two loops. Blue 🔒 boxes are fixed code no agent can edit; green boxes are harness data the evolution agent changes; amber is the gate; teal is Atlas; indigo is Raindrop.</p>
+   <div class="card">${svg}</div>
+   <div class="card"><b>Why this is harness learning, not prompt tuning:</b> the edits change the <i>workflow graph</i> (a new feasibility check and a replan branch that switches to a safer fallback program), the harness's own <i>beliefs</i> used by that check, <i>budgets</i>, and body-specific <i>rules</i>. The model, physics and verifier never change.</div>`;
+ },
  async results() {
   const rows = await api("/api/results");
   const tr = r => `<tr><td>v${r.version}</td><td>${r.verdict === "accepted" ? '<span class="pill acc">accepted</span>' : r.verdict === "rejected" ? '<span class="pill rej">rejected</span>' : esc(r.verdict)}</td>
@@ -86,10 +154,15 @@ const pages = {
  async workflow() {
   const L = await api("/api/lineage");
   const opts = L.map(h => `<option value="${h.version}" ${h.version===17?"selected":""}>v${h.version} (${h.verdict})</option>`).join("");
-  setTimeout(() => { const s = $("#wsel"); const draw = () => { const h = L.find(x => x.version == s.value);
-    $("#wright").innerHTML = graph(h, L[0]) + `<pre>${esc((h.rules||[]).join("\n"))}</pre>`; }; s.onchange = draw; draw(); });
+  const detail = async h => { const T = await api(`/api/templates?version=${h.version}`);
+    return graph(h, L[0]) + `<div class="muted" style="margin:6px 0">budgets.replans = ${h.workflow ? (L.find(x=>x.version==h.version)?.budgets ?? "") : ""}</div>` +
+      (T.primary ? `<div><b>primary program</b> (example mission)</div><pre>${esc(T.primary.join("\n"))}</pre>` : "") +
+      (T.fallback ? `<div><b>fallback program</b> — used when tier1_check fails</div><pre>${esc(T.fallback.join("\n"))}</pre>` : "") +
+      `<div><b>rules</b></div><pre>${esc((h.rules||[]).join("\n"))}</pre>`; };
+  setTimeout(async () => { $("#wleft").innerHTML = await detail(L[0]); const s = $("#wsel");
+    const draw = async () => { $("#wright").innerHTML = await detail(L.find(x => x.version == s.value)); }; s.onchange = draw; draw(); });
   return `<h2>Workflow graph</h2><p class="sub">The step graph is data the harness evolves. New steps are highlighted.</p>
-   <div class="grid2"><div class="card"><b>v1 (bootstrap)</b>${graph(L[0], L[0])}<pre>${esc((L[0].rules||[]).join("\n"))}</pre></div>
+   <div class="grid2"><div class="card"><b>v1 (bootstrap)</b><div id="wleft"></div></div>
    <div class="card"><b>compare</b> <select id="wsel">${opts}</select><div id="wright"></div></div></div>`;
  },
  async replays() {
@@ -145,13 +218,24 @@ const pages = {
 
 function graph(h, base) {
   const nodes = h?.workflow?.nodes || [], baseN = new Set(base?.workflow?.nodes || []);
-  const W = 120, gap = 22, w = nodes.length * (W + gap);
-  return `<svg viewBox="0 0 ${Math.max(w, 300)} 70" width="100%" role="img" aria-label="workflow graph">` + nodes.map((n, i) => {
-    const x = i * (W + gap), added = !baseN.has(n);
-    return `<rect x="${x}" y="15" width="${W}" height="38" rx="8" fill="${added ? "#e6f4ea" : "none"}" stroke="${added ? "#2e7d32" : "#999"}" stroke-width="${added ? 2 : 1}"/>
-      <text x="${x + W / 2}" y="39" text-anchor="middle" font-size="13">${n}</text>` +
-      (i < nodes.length - 1 ? `<line x1="${x + W}" y1="34" x2="${x + W + gap}" y2="34" stroke="#999" marker-end="url(#a)"/>` : "");
-  }).join("") + `<defs><marker id="a" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6" fill="#999"/></marker></defs></svg>`;
+  const main = nodes.filter(n => n !== "replan"), hasReplan = nodes.includes("replan");
+  const W = 118, gap = 30, w = main.length * (W + gap);
+  const xOf = n => main.indexOf(n) * (W + gap);
+  let svg = `<svg viewBox="0 0 ${Math.max(w, 320)} ${hasReplan ? 150 : 80}" width="100%" role="img" aria-label="workflow graph">
+   <defs><marker id="a" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7" fill="#888"/></marker></defs>`;
+  main.forEach((n, i) => { const x = xOf(n), added = !baseN.has(n);
+    svg += `<rect x="${x}" y="15" width="${W}" height="40" rx="8" fill="${added ? "#e6f4ea" : "none"}" stroke="${added ? "#2e7d32" : "#999"}" stroke-width="${added ? 2 : 1}"/>
+      <text x="${x + W / 2}" y="40" text-anchor="middle" font-size="13">${n}</text>`;
+    if (i < main.length - 1) { const lbl = n === "tier1_check" ? "pass" : "";
+      svg += `<line x1="${x + W}" y1="35" x2="${x + W + gap - 2}" y2="35" stroke="#888" marker-end="url(#a)"/>` +
+        (lbl ? `<text x="${x + W + 4}" y="29" font-size="10" fill="#2e7d32">${lbl}</text>` : ""); } });
+  if (hasReplan && main.includes("tier1_check")) { const t1 = xOf("tier1_check"), t2 = xOf("tier2_sim"), rx = t1 + 20;
+    svg += `<rect x="${rx}" y="95" width="${W}" height="38" rx="8" fill="#e6f4ea" stroke="#2e7d32" stroke-width="2"/>
+      <text x="${rx + W / 2}" y="119" text-anchor="middle" font-size="13">replan</text>
+      <path d="M${t1 + W / 2},55 L${t1 + W / 2},95" stroke="#c62828" stroke-dasharray="4 3" fill="none" marker-end="url(#a)"/>
+      <text x="${t1 + W / 2 + 4}" y="78" font-size="10" fill="#c62828">fail → fallback program</text>
+      <path d="M${rx + W},114 L${t2 + W / 2},114 L${t2 + W / 2},57" stroke="#2e7d32" fill="none" marker-end="url(#a)"/>`; }
+  return svg + `</svg>`;
 }
 
 async function go(p) {
