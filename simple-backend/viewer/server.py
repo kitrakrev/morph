@@ -15,7 +15,7 @@ from urllib.parse import parse_qs, urlparse
 
 from engine.store import db
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent.parent.parent  # repo root (out/, docs/ live there)
 PORT = int(os.getenv("PORT", "8765"))
 
 
@@ -173,7 +173,7 @@ class Handler(SimpleHTTPRequestHandler):
         if u.path.startswith("/out/"):
             self.path = u.path
             return super().do_GET()
-        self.path = "/viewer/index.html"
+        self.path = "/simple-backend/viewer/index.html"
         return super().do_GET()
 
     def translate_path(self, path):

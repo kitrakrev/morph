@@ -20,6 +20,16 @@ persistent Atlas memory and checkpoint/resume.
 
 ---
 
+## Repository layout
+
+| Path | What |
+|---|---|
+| `simple-backend/` | **Simple backend** (this README's results): grid simulator, harness engine, evolution loop, gate, Atlas/Agent Engine memory, Raindrop telemetry, viewer, scripts |
+| `docs/` | GitHub Pages site (evidence viewer snapshot, deck, videos) |
+| other backends | e.g. the MuJoCo 3D backend shown in the viewer is a separate backend; its code lives in its own folder |
+
+Run everything from the repo root with `PYTHONPATH=simple-backend`.
+
 ## How it works
 
 ![How it works](docs/img/viewer-how.png)
@@ -47,8 +57,8 @@ rule (v17). The v1 drone program used `move_to` (a ground move); v17 flies every
  one event per trial + failure signals → Raindrop     verdict + evaluation in one transaction
 ```
 
-**Fixed code (no agent edits it):** `sim/` world, physics, skills, tier 1/2, verifier, renderer;
-`engine/runner.py`, `engine/gate.py`.
+**Fixed code (no agent edits it):** `simple-backend/sim/` world, physics, skills, tier 1/2, verifier, renderer;
+`simple-backend/engine/runner.py`, `simple-backend/engine/gate.py`.
 
 **Evolvable data (the harness document):** workflow graph, rules, constraints, tool specs, beliefs
 (energy model, reserve), reports read, retrieval policy, model routing, budgets, composed skills.
@@ -97,7 +107,7 @@ fixed no-fly routing, not fixed-wing-specific behaviour; the planner already cru
   were all rejected by the gate: each delivered less and added safety violations (e.g. v19 raised the minimum altitude).
 - **Transfer:** quadruped and held-out hexapod score **12/12 held-out (n=12) from bootstrap** on medium
   single-delivery missions: generations to adapt = 0 for ground bodies vs 1 accepted edit for the drone.
-  Cold vs warm (taxonomic) transfer is implemented (`engine/transfer.py`) but **not measured**: there was no
+  Cold vs warm (taxonomic) transfer is implemented (`simple-backend/engine/transfer.py`) but **not measured**: there was no
   gap to close on that cell. Harder legged cells (hard/deadline: 3/6) are next.
 
 ## Evaluation matrix
@@ -141,7 +151,7 @@ without retraining, and never promotes a change that adds safety violations **on
   harness cannot learn charger selection (the remaining hard-tier failures). Candidate for a tier-2 expansion.
 - **Memory retrieval hurt twice.** Letting the planner read past episodes (v14, v20) added no-fly violations;
   the gate rejected both.
-- **Multimodal failure memory is an add-on, not yet in the gate's loop.** `engine/multimodal.py` embeds each failed
+- **Multimodal failure memory is an add-on, not yet in the gate's loop.** `simple-backend/engine/multimodal.py` embeds each failed
   trial's final replay frame together with its failure text using `voyage-multimodal-3.5` (Atlas Embedding API)
   into `failures_mm`. An image-only query with a mid-air battery-death frame retrieves other mid-air battery
   deaths (cosine 0.81). The evolution agent still retrieves failures by text.
@@ -171,16 +181,16 @@ does, never how it is judged.**
 | Checkpoints collection | runner state per workflow node; a killed run resumes |
 | **Atlas Agent Engine memory** | episodic / procedural / semantic / taxonomic memory per body (live; Atlas-collection fallback) |
 | LLM response cache (unique key) | deterministic re-runs within the free-model budget |
-| **Change streams** | live feed in the evidence viewer (`viewer/server.py`): trials, new versions, gate decisions |
+| **Change streams** | live feed in the evidence viewer (`simple-backend/viewer/server.py`): trials, new versions, gate decisions |
 
 **Atlas Agent Engine memory is live.** The hosted memory server (memory-only project, Voyage `voyage-4-large`
 embeddings, service-account auth via `agent-engine-sdk-memory`) stores the harness's episodic, procedural, semantic
 and taxonomic memory; trial episodes from mission runs land there. Measured: saves ~290–600 ms, searches ~310 ms.
-If the server is unreachable, `engine/memory.py` falls back to Atlas collections with the same API and says so.
+If the server is unreachable, `simple-backend/engine/memory.py` falls back to Atlas collections with the same API and says so.
 
 ## Built today vs used
 
-**Built today:** everything in `sim/`, `engine/`, `scripts/` — the N-D world, physics, skills, tiers,
+**Built today:** everything in `simple-backend/sim/`, `simple-backend/engine/`, `simple-backend/scripts/` — the N-D world, physics, skills, tiers,
 verifier, renderer, mission matrix, harness schema, planner, runner, evolution agent, gate, memory,
 telemetry, reports.
 
@@ -203,7 +213,7 @@ Not used: MuJoCo, real robots, any training or fine-tuning.
 
 ## Evidence viewer (localhost)
 
-`PYTHONPATH=. uv run python viewer/server.py` → http://localhost:8765 — read-only on Atlas. Sidebar: overview,
+`PYTHONPATH=simple-backend uv run python simple-backend/viewer/server.py` → http://localhost:8765 — read-only on Atlas. Sidebar: overview,
 results (k/n per split), lineage and diffs with gate checks and retrieved failures, workflow graph v1 vs vN,
 side-by-side replays, runs, what evolves, evaluation matrix, live change-stream feed, built on, scope.
 
@@ -213,7 +223,7 @@ A robot arrives as a YAML spec: its `structure`, the `capabilities` its controll
 refused by the simulator), and its `terrain`. Bootstrap builds the harness from it; the loop evolves it.
 
 ```bash
-PYTHONPATH=. uv run python -m engine.onboard robots/medic-drone.yaml --gens 3
+PYTHONPATH=simple-backend uv run python -m engine.onboard simple-backend/robots/medic-drone.yaml --gens 3
 ```
 
 Without a `capabilities` block, capabilities are derived from structure exactly as before (existing results
@@ -224,10 +234,10 @@ re-checked unchanged: drone v17 and fixed-wing v2 both 12/12 held-out).
 ```bash
 uv sync
 cp .env.example .env   # MONGODB_URI, OPENROUTER_API_KEY, RAINDROP_WRITE_KEY
-PYTHONPATH=. uv run python -c "from engine.store import ensure_schema; ensure_schema()"
-PYTHONPATH=. uv run python -m engine.loop drone --gens 4        # evolve
-PYTHONPATH=. uv run python scripts/replay.py drone train-drone-105 1 8   # MP4 replays in out/
-PYTHONPATH=. uv run python scripts/matrix_report.py              # matrix status
+PYTHONPATH=simple-backend uv run python -c "from engine.store import ensure_schema; ensure_schema()"
+PYTHONPATH=simple-backend uv run python -m engine.loop drone --gens 4        # evolve
+PYTHONPATH=simple-backend uv run python simple-backend/scripts/replay.py drone train-drone-105 1 8   # MP4 replays in out/
+PYTHONPATH=simple-backend uv run python simple-backend/scripts/matrix_report.py              # matrix status
 ```
 
 ## Honesty notes

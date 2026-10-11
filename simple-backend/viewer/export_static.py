@@ -31,5 +31,5 @@ w("videos", vids)
 w("feed", [])
 for v in vids:
     shutil.copy(server.ROOT / "out" / v, dest / "out" / v)
-shutil.copy(server.ROOT / "viewer" / "index.html", dest / "index.html")
+shutil.copy(server.ROOT / "simple-backend" / "viewer" / "index.html", dest / "index.html")
 print("exported", dest, len(lin), "versions,", len(vids), "videos")
