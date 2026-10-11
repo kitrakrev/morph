@@ -48,7 +48,7 @@
   <a data-p="overview">Overview</a><a data-p="how">How it works</a><a data-p="results">Results</a><a data-p="lineage">Lineage &amp; edits</a>
   <a data-p="workflow">Workflow graph</a><a data-p="replays">Replays</a><a data-p="runs">Runs</a>
   <a data-p="evolves">What evolves</a><a data-p="matrix">Evaluation matrix</a><a data-p="feed">Live feed</a>
-  <a data-p="stack">Built on</a><a data-p="scope">Scope &amp; limits</a>
+  <a data-p="stack">Built on</a><a href="deck.html" style="color:#9fe0c0">Pitch deck ↗</a><a data-p="scope">Scope &amp; limits</a>
 </nav>
 <main id="main"></main>
 <script>
@@ -272,7 +272,7 @@ async function go(p) {
   try { $("#main").innerHTML = await pages[p](); } catch (e) { $("#main").innerHTML = `<p class="bad">${esc(e)}</p>`; }
   history.replaceState(null, "", "#" + p);
 }
-document.querySelectorAll("nav a").forEach(a => a.onclick = () => go(a.dataset.p));
+document.querySelectorAll("nav a[data-p]").forEach(a => a.onclick = () => go(a.dataset.p));
 api("/api/bodies").then(B => { const sel = $("#bsel"); sel.innerHTML = B.map(b => `<option ${b === BODY ? "selected" : ""}>${b}</option>`).join("");
   sel.onchange = () => { BODY = sel.value; const p = location.hash.slice(1) || "overview"; history.replaceState(null, "", `?body=${BODY}#${p}`); go(p); }; }).catch(() => {});
 go(location.hash.slice(1) || "overview");

@@ -1,0 +1,136 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Morph Pitch Deck</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400..700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+html,body{margin:0;height:100%;background:#0a0f0d;overflow:hidden}
+#stage{position:absolute;left:50%;top:50%;width:1920px;height:1080px;transform-origin:center}
+.slide{position:absolute;inset:0;width:1920px;height:1080px;box-sizing:border-box;display:none}
+.slide.on{display:flex} .slide[style*="display:grid"].on{display:grid}
+.slide *{margin:0;box-sizing:border-box} .slide table{border-collapse:collapse;width:100%}
+.slide th,.slide td{padding:14px 18px;border-bottom:1px solid #CFC9BB;vertical-align:top}
+#nav{position:fixed;bottom:14px;right:18px;color:#8FAAA0;font:14px system-ui;user-select:none}
+#nav a{color:#4FC08D;cursor:pointer;margin:0 6px;text-decoration:none}
+</style></head><body><div id="stage"><section class="slide" id="cover" data-transition="fade" style="background:#0F1E19;color:#F4F2EC;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;justify-content:center;gap:40px">
+<p style="font-size:28px;letter-spacing:4px;text-transform:uppercase;color:#4FC08D;font-weight:600">Harness Engineering · SF Tech Week</p>
+<h1 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:132px;font-weight:700;line-height:1.02;color:#F4F2EC">Morph</h1>
+<h2 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:64px;font-weight:500;line-height:1.15;color:#F4F2EC">The fleet that learns new robot bodies.</h2>
+<p style="font-size:36px;line-height:1.45;color:#BFD3CA;width:1300px">When a rescue team gets a new kind of robot, someone spends weeks rewriting its software. Morph's harness rewrites itself from its own failures.</p>
+<p style="position:absolute;left:128px;bottom:64px;width:1600px;font-size:24px;color:#8FAAA0">Karthik Raja Anandan · github.com/kitrakrev/morph · kitrakrev.github.io/morph</p>
+
+</section>
+<section class="slide" id="problem" data-transition="fade" style="background:#F4F2EC;color:#14231D;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;gap:56px">
+<p style="font-size:28px;letter-spacing:4px;text-transform:uppercase;color:#B5561C;font-weight:600">The problem</p>
+<h2 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:72px;font-weight:600;line-height:1.1;color:#14231D">A new robot body breaks the mission software.</h2>
+<div style="display:flex;gap:32px">
+<div style="flex:1;display:flex;flex-direction:column;gap:16px;background:#FFFFFF;padding:40px;border:1px solid #DDD8CC;border-radius:16px">
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:44px;font-weight:600;color:#B5561C">Rules don't transfer</h3>
+<p style="font-size:30px;line-height:1.45;color:#3E4B45">Our drone's starting harness told it to drive. It failed all 12 held-out missions.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:16px;background:#FFFFFF;padding:40px;border:1px solid #DDD8CC;border-radius:16px">
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:44px;font-weight:600;color:#14231D">Humans patch it</h3>
+<p style="font-size:30px;line-height:1.45;color:#3E4B45">Each new or refitted body means an engineer rewrites rules, limits and routing, then re-tests. Days to weeks.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:16px;background:#FFFFFF;padding:40px;border:1px solid #DDD8CC;border-radius:16px">
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:44px;font-weight:600;color:#14231D">The gap</h3>
+<p style="font-size:30px;line-height:1.45;color:#3E4B45">Trained controllers handle movement. Nobody adapts the mission layer above them automatically.</p>
+</div>
+</div>
+
+</section>
+<section class="slide" id="how" data-transition="fade" style="background:#0F1E19;color:#F4F2EC;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<p style="font-size:28px;letter-spacing:4px;text-transform:uppercase;color:#4FC08D;font-weight:600">How it works</p>
+<h2 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:64px;font-weight:600;line-height:1.1">Two loops. One gate.</h2>
+<p style="font-size:26px;letter-spacing:3px;text-transform:uppercase;color:#8FAAA0;font-weight:600">Loop 1 · run missions</p>
+<div style="display:flex;gap:16px;align-items:stretch">
+<div style="flex:1;background:#18302A;border:2px solid #4FC08D;border-radius:14px;padding:24px"><h3 style="font-size:30px;font-weight:600">Harness vN</h3><p style="font-size:24px;color:#BFD3CA">rules · workflow · beliefs</p></div>
+<div style="flex:1;background:#18302A;border:1px solid #3A5A4F;border-radius:14px;padding:24px"><h3 style="font-size:30px;font-weight:600">Planner</h3><p style="font-size:24px;color:#BFD3CA">Claude Haiku, fixed</p></div>
+<div style="flex:1;background:#1C2738;border:1px solid #4A6290;border-radius:14px;padding:24px"><h3 style="font-size:30px;font-weight:600">Simulator</h3><p style="font-size:24px;color:#BFD3CA">true physics, locked</p></div>
+<div style="flex:1;background:#1C2738;border:1px solid #4A6290;border-radius:14px;padding:24px"><h3 style="font-size:30px;font-weight:600">Verifier</h3><p style="font-size:24px;color:#BFD3CA">locked scoring</p></div>
+<div style="flex:1;background:#232043;border:1px solid #6E66C8;border-radius:14px;padding:24px"><h3 style="font-size:30px;font-weight:600">Raindrop</h3><p style="font-size:24px;color:#BFD3CA">failure signals</p></div>
+</div>
+<p style="font-size:26px;letter-spacing:3px;text-transform:uppercase;color:#8FAAA0;font-weight:600">Loop 2 · evolve the harness</p>
+<div style="display:flex;gap:16px;align-items:stretch">
+<div style="flex:1;background:#123A2D;border:1px solid #00A86B;border-radius:14px;padding:24px"><h3 style="font-size:30px;font-weight:600">MongoDB Atlas</h3><p style="font-size:24px;color:#BFD3CA">$rankFusion over past failures</p></div>
+<div style="flex:1;background:#18302A;border:1px solid #3A5A4F;border-radius:14px;padding:24px"><h3 style="font-size:30px;font-weight:600">Evolution agent</h3><p style="font-size:24px;color:#BFD3CA">Claude Sonnet: one edit + prediction</p></div>
+<div style="flex:1;background:#3A2A12;border:2px solid #E8A33A;border-radius:14px;padding:24px"><h3 style="font-size:30px;font-weight:600">Gate</h3><p style="font-size:24px;color:#F1D9B0">more deliveries, no new violations, no regression</p></div>
+<div style="flex:1;background:#18302A;border:2px solid #4FC08D;border-radius:14px;padding:24px"><h3 style="font-size:30px;font-weight:600">Promote</h3><p style="font-size:24px;color:#BFD3CA">one Atlas transaction → vN+1</p></div>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:1600px;font-size:28px;color:#4FC08D;font-weight:600">The model never changes. Only the harness does.</p>
+
+</section>
+<section class="slide" id="results" data-transition="fade" style="background:#F4F2EC;color:#14231D;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:start">
+<div style="display:flex;flex-direction:column;gap:28px">
+<p style="font-size:28px;letter-spacing:4px;text-transform:uppercase;color:#00784C;font-weight:600">Results · drone</p>
+<p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:132px;font-weight:700;line-height:1;color:#00784C">0/12 → 12/12</p>
+<p style="font-size:32px;line-height:1.4;color:#14231D">held-out missions on unseen maps (n=12), <b>0 safety violations</b>, same planner model</p>
+<div style="display:flex;flex-direction:column;gap:14px;border-top:1px solid #CFC9BB;padding:24px 0 0 0">
+<p style="font-size:28px;line-height:1.4;color:#3E4B45"><b>Hard tier</b> (long-range, loaded): 4/6 held-out (n=6), never tuned on</p>
+<p style="font-size:28px;line-height:1.4;color:#3E4B45"><b>19 edits proposed, 2 accepted, 17 rejected</b> — one tried to switch off no-fly avoidance</p>
+<p style="font-size:28px;line-height:1.4;color:#3E4B45"><b>Quadruped, hexapod:</b> 12/12 from structure alone (n=12 each)</p>
+</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:16px">
+<img src="img/hero-frame.png" alt="Same held-out mission, same model: harness v1 fails (left), v17 delivers (right)" style="width:800px;height:490px;object-fit:contain;background:#FFFFFF;border:1px solid #DDD8CC;border-radius:16px">
+<p style="font-size:24px;color:#5A665F">Held-out mission 903: v1 tries to drive and fails; v17 flies every leg and delivers.</p>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:1600px;font-size:24px;color:#5A665F">Every number from Atlas trials; held-out scored after acceptance, never used for selection.</p>
+
+</section>
+<section class="slide" id="built" data-transition="fade" style="background:#F4F2EC;color:#14231D;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<p style="font-size:28px;letter-spacing:4px;text-transform:uppercase;color:#00784C;font-weight:600">Built on</p>
+<h2 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:64px;font-weight:600;line-height:1.1">Atlas remembers. Raindrop sees. Claude proposes.</h2>
+<table style="font-size:28px;color:#14231D;font-family:'IBM Plex Sans', Arial, sans-serif">
+<tr><th style="width:24%;text-align:left">Piece</th><th style="width:76%;text-align:left">What it does in Morph</th></tr>
+<tr><td>MongoDB Atlas</td><td>Versioned harness lineage · transaction on every promotion · autoEmbed (Voyage) + $rankFusion failure retrieval · time-series metrics · checkpoints · change-stream live feed</td></tr>
+<tr><td>Atlas Agent Engine</td><td>Memory SDK integrated (four memory types, service account); server provisioning today, Atlas-collection fallback in use</td></tr>
+<tr><td>Raindrop</td><td>Signal per trial and per gate decision; the evolution agent reads Raindrop's signals before each edit</td></tr>
+<tr><td>Claude Code headless</td><td>Planner: Claude Haiku (fixed all day) · evolution agent: Claude Sonnet</td></tr>
+</table>
+<p style="position:absolute;left:128px;bottom:64px;width:1600px;font-size:24px;color:#5A665F">Prior art: prompt optimizers tune prompts; robot learning retrains policies. Morph adapts the harness to a new body, with no training.</p>
+
+</section>
+<section class="slide" id="close" data-transition="fade" style="background:#0F1E19;color:#F4F2EC;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;justify-content:space-between;gap:40px">
+<div style="display:flex;flex-direction:column;gap:28px">
+<p style="font-size:28px;letter-spacing:4px;text-transform:uppercase;color:#4FC08D;font-weight:600">Scope</p>
+<p style="font-size:32px;line-height:1.45;color:#BFD3CA;width:1500px">Planning layer on top of each robot's own controller · simulated physics, no sim-to-real claim · known movement types · every number reported with n.</p>
+<p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:56px;font-weight:600;line-height:1.15;color:#F4F2EC">It can expand what it does, never how it's judged.</p>
+</div>
+<p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:48px;font-weight:500;line-height:1.25;color:#4FC08D;width:1600px">Raindrop sees the failure. Atlas remembers it. The harness fixes itself. The gate proves it.</p>
+<p style="position:absolute;left:128px;bottom:64px;width:1600px;font-size:28px;color:#8FAAA0">kitrakrev.github.io/morph · github.com/kitrakrev/morph</p>
+
+</section>
+<section class="slide" id="backup" data-transition="fade" style="background:#F4F2EC;color:#14231D;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;gap:36px">
+<p style="font-size:28px;letter-spacing:4px;text-transform:uppercase;color:#B5561C;font-weight:600">Backup · Q&amp;A</p>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:32px">
+<div style="display:flex;flex-direction:column;gap:12px;background:#FFFFFF;padding:36px;border:1px solid #DDD8CC;border-radius:16px">
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:36px;font-weight:600">Isn't this prompt tuning?</h3>
+<p style="font-size:26px;line-height:1.45;color:#3E4B45">Accepted edits changed the workflow graph (feasibility check + replan branch), the harness's own energy beliefs and budgets, and body rules.</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:12px;background:#FFFFFF;padding:36px;border:1px solid #DDD8CC;border-radius:16px">
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:36px;font-weight:600">Could it cheat?</h3>
+<p style="font-size:26px;line-height:1.45;color:#3E4B45">Physics and verifier are locked; held-out missions are hidden from the agent; turning off no-fly avoidance is now blocked before any run.</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:12px;background:#FFFFFF;padding:36px;border:1px solid #DDD8CC;border-radius:16px">
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:36px;font-weight:600">Vs. a trained model?</h3>
+<p style="font-size:26px;line-height:1.45;color:#3E4B45">Two layers: trained controllers move the body; Morph adapts the mission layer above them, with no training data and minutes per edit.</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:12px;background:#FFFFFF;padding:36px;border:1px solid #DDD8CC;border-radius:16px">
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:36px;font-weight:600">What didn't work?</h3>
+<p style="font-size:26px;line-height:1.45;color:#3E4B45">Memory retrieval hurt twice (rejected); charger choice is fixed code, so the harness can't learn it yet.</p>
+</div>
+</div>
+
+</section>
+</div>
+<div id="nav"><a id="p">&larr;</a><span id="n"></span><a id="x">&rarr;</a> · <a href="./">viewer</a></div>
+<script>
+const S=[...document.querySelectorAll('.slide')];let i=Math.max(0,parseInt(location.hash.slice(1)||'1')-1);
+S.forEach(s=>{if((s.getAttribute('style')||'').includes('display:grid'))s.dataset.grid=1;s.style.display='none'});
+function show(k){i=Math.min(S.length-1,Math.max(0,k));S.forEach((s,j)=>s.style.display=j===i?(s.dataset.grid?'grid':'flex'):'none');
+document.getElementById('n').textContent=(i+1)+' / '+S.length;history.replaceState(null,'','#'+(i+1));}
+function fit(){const k=Math.min(innerWidth/1920,innerHeight/1080);document.getElementById('stage').style.transform='translate(-50%,-50%) scale('+k+')';}
+addEventListener('resize',fit);fit();show(i);
+addEventListener('keydown',e=>{if(['ArrowRight','PageDown',' '].includes(e.key))show(i+1);if(['ArrowLeft','PageUp'].includes(e.key))show(i-1);});
+document.getElementById('stage').onclick=e=>show(e.clientX>innerWidth/2?i+1:i-1);
+document.getElementById('p').onclick=()=>show(i-1);document.getElementById('x').onclick=()=>show(i+1);
+</script></body></html>
