@@ -34,7 +34,8 @@ def _ae_client():
         tok = requests.post("https://agentengine.mongodb.com/api/v1/oauth/token", timeout=20,
                             auth=(env["AE_CLIENT_ID"], env["AE_CLIENT_SECRET"]),
                             data={"grant_type": "client_credentials"}).json()["access_token"]
-        ae = AEMemory(service_account_token=tok)
+        # project_id selects the project-scoped routes (/api/v1/projects/{id}/memory/*) the hosted server serves
+        ae = AEMemory(service_account_token=tok, project_id=env.get("AGENTIC_MEMORY_PROJECT_ID"))
         ae.list_domains()  # readiness probe: raises MemoryNotProvisionedError etc. until the server is up
         return ae
     except Exception as e:

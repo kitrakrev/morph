@@ -163,12 +163,14 @@ does, never how it is judged.**
 | **Vector Search + Atlas Search + `$rankFusion`** | hybrid retrieval of similar past failures for the evolution agent |
 | Time-series collection | per-trial metrics for curves |
 | Checkpoints collection | runner state per workflow node; a killed run resumes |
-| Memory collections (semantic / episodic / procedural / taxonomic) | Agent Engine–shaped memory; user_id = body category |
+| **Atlas Agent Engine memory** | episodic / procedural / semantic / taxonomic memory per body (live; Atlas-collection fallback) |
 | LLM response cache (unique key) | deterministic re-runs within the free-model budget |
 | **Change streams** | live feed in the evidence viewer (`viewer/server.py`): trials, new versions, gate decisions |
 
-Atlas Agent Engine: CLI signed in and a memory-only project scaffolded; the memory server needs a Voyage
-key and was not provisioned today, so memory runs on plain collections with the same API shape.
+**Atlas Agent Engine memory is live.** The hosted memory server (memory-only project, Voyage `voyage-4-large`
+embeddings, service-account auth via `agent-engine-sdk-memory`) stores the harness's episodic, procedural, semantic
+and taxonomic memory; trial episodes from mission runs land there. Measured: saves ~290–600 ms, searches ~310 ms.
+If the server is unreachable, `engine/memory.py` falls back to Atlas collections with the same API and says so.
 
 ## Built today vs used
 

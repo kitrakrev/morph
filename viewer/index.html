@@ -230,7 +230,7 @@ const pages = {
  async stack() {
   return `<h2>Built on</h2><div class="card"><table><tr><th>sponsor / tool</th><th>how Morph uses it</th></tr>
    <tr><td>MongoDB Atlas</td><td>versioned harness lineage (unique index), trials, transaction on promotion, autoEmbed (voyage-4-lite) vector + keyword indexes on failures, $rankFusion hybrid retrieval, time-series metrics, checkpoints for resume, change streams (this viewer), LLM response cache</td></tr>
-   <tr><td>Atlas Agent Engine</td><td>memory API shape (semantic / episodic / procedural / taxonomic); <b>running on fallback collections</b> — the hosted memory server was not provisioned today</td></tr>
+   <tr><td>Atlas Agent Engine</td><td>hosted memory server (semantic / episodic / procedural / taxonomic) via <code>agent-engine-sdk-memory</code> and a service account; mission episodes stored there; Atlas-collection fallback if unreachable</td></tr>
    <tr><td>Raindrop</td><td>one <code>mission_trial</code> event per trial with signals battery_death, nofly_violation, payload_violation, reserve_breach, delivered; one event per planner / evolution LLM call</td></tr>
    <tr><td>Claude (Claude Code headless)</td><td>planner = Haiku (fixed all day), evolution agent = Sonnet; cached in Atlas</td></tr></table></div>`;
  },
