@@ -26,10 +26,15 @@ for b in BODIES:  # drone keeps the un-suffixed files the page loads first
     w("trials" + sfx, server.trials(b, None, None))
     lin += lb
 w("matrix", {"md": server.matrix_md()})
-vids = [v for v in server.videos() if v.startswith(("pair-", "evolution-", "attempts-"))]
+# keep every clip already published (other backends add theirs straight to docs/out)
+published = {p.name for p in (dest / "out").glob("*.mp4")} if (dest / "out").exists() else set()
+vids = sorted({v for v in server.videos() if v.startswith(("pair-", "evolution-", "attempts-"))}
+              | {v for v in published if v.startswith(("pair-", "evolution-", "attempts-", "mujoco-"))})
 w("videos", vids)
 w("feed", [])
 for v in vids:
-    shutil.copy(server.ROOT / "out" / v, dest / "out" / v)
+    src = server.ROOT / "out" / v
+    if src.exists():
+        shutil.copy(src, dest / "out" / v)
 shutil.copy(server.ROOT / "simple-backend" / "viewer" / "index.html", dest / "index.html")
 print("exported", dest, len(lin), "versions,", len(vids), "videos")
