@@ -43,7 +43,8 @@ def commit(cand: dict, decision: dict, edit: dict) -> dict:
           "version": cand["version"], "parent": cand["parent"], "edit": edit.get("changes"), "diff": cand.get("diff"),
           "prediction": edit.get("prediction"), "measured": {"train_success_delta":
               decision["metrics"]["candidate"]["train"] - decision["metrics"]["parent"]["train"]},
-          "retrieved_failures": edit.get("retrieved", []), "model": edit.get("model"), **decision,
+          "retrieved_failures": edit.get("retrieved", []), "raindrop": edit.get("raindrop"),
+          "model": edit.get("model"), **decision,
           "ts": time.time()}
     with client().start_session() as s:
         with s.start_transaction():

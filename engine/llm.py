@@ -52,18 +52,20 @@ def _extract_json(text: str):
 CLAUDE_MODEL = os.getenv("MORPH_CLAUDE_MODEL", "sonnet")
 
 
-def claude_json(system: str, user: str, timeout: int = 180, model: str | None = None, retries: int = 1) -> dict:
+def claude_json(system: str, user: str, timeout: int = 180, model: str | None = None, retries: int = 1,
+                tools: list[str] | None = None, cache: bool = True) -> dict:
     """Claude via Claude Code headless mode (`claude -p`). Cached in Atlas by prompt hash."""
     import subprocess
     model = model or CLAUDE_MODEL
     key = hashlib.sha256(json.dumps(["claude", model, system, user]).encode()).hexdigest()
-    hit = db().llm_cache.find_one({"key": key})
+    hit = db().llm_cache.find_one({"key": key}) if cache else None
     if hit:
         return {**hit["response"], "_cached": True}
     t0, last = time.time(), None
+    extra = ["--allowedTools", ",".join(tools)] if tools else []
     for _ in range(retries + 1):
         proc = subprocess.run(["claude", "-p", f"{system}\n\n{user}", "--model", model,
-                               "--output-format", "json"], capture_output=True, text=True, timeout=timeout,
+                               "--output-format", "json", *extra], capture_output=True, text=True, timeout=timeout,
                               cwd="/tmp")
         try:
             msgs = json.loads(proc.stdout)
@@ -78,7 +80,8 @@ def claude_json(system: str, user: str, timeout: int = 180, model: str | None = 
         raise RuntimeError(f"claude -p failed: {last}")
     out = {"json": parsed, "model": f"claude-code:{model}",
            "latency_s": round(time.time() - t0, 2), "cost_usd": res.get("total_cost_usd")}
-    db().llm_cache.insert_one({"key": key, "tier": "claude", "response": out, "ts": time.time()})
+    if cache:
+        db().llm_cache.insert_one({"key": key, "tier": "claude", "response": out, "ts": time.time()})
     return out
 
 

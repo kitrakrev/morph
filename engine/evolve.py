@@ -42,6 +42,26 @@ def similar_failures(body: str, query: str, k: int = 6) -> list[str]:
         return [d["summary"] for d in db().failures.find({"body": body}, {"summary": 1}).sort("ts", -1).limit(k)]
 
 
+RAINDROP_TOOLS = ["mcp__raindrop__raindrop_skills", "mcp__raindrop__list_signals", "mcp__raindrop__list_events",
+                  "mcp__raindrop__search_events", "mcp__raindrop__get_event_count"]
+
+
+def raindrop_evidence(body: str, version: int) -> dict:
+    """Ask Raindrop (via its MCP, from a headless Claude step) what it saw for this harness version."""
+    prompt = (f"Use the Raindrop MCP tools (call raindrop_skills('explore') first). For user_id '{body}', "
+              f"event 'mission_trial', convo_id '{body}-v{version}', last 24h: count matched signals per signal name "
+              f"(Battery death, Reserve breach, Nofly violation, Delivered) and quote up to 3 distinct failure outputs "
+              f"(first 160 chars). Ignore events whose split property is 'heldout'. "
+              f'Reply ONLY JSON: {{"signals": {{name: count}}, "failures": [str], "events_seen": int}}')
+    try:
+        out = llm.claude_json("You are a read-only Raindrop analyst.", prompt, model="sonnet", tools=RAINDROP_TOOLS,
+                              cache=False, timeout=240, retries=0)
+        return {"source": "raindrop-mcp", **out["json"]}
+    except Exception as e:
+        print(f"    raindrop evidence unavailable ({str(e)[:80]})")
+        return {"source": "unavailable"}
+
+
 def propose(parent: dict, parent_eval: dict, rejected: list[dict]) -> dict:
     from engine.planner import SYSTEM as PLANNER_SYSTEM
     fails = [t["diagnosis"] for t in parent_eval["trials"] if not t["score"]["success"]]
@@ -50,6 +70,8 @@ def propose(parent: dict, parent_eval: dict, rejected: list[dict]) -> dict:
                   "result": "OK" if t["score"]["success"] else t["diagnosis"].split(",")[0]}
                  for t in parent_eval["trials"]]
     past = similar_failures(parent["body_type"], "; ".join(fails[:3]) or "mission failure")
+    rd = raindrop_evidence(parent["body_type"], parent["version"])
+    print(f"    raindrop: {json.dumps(rd)[:200]}")
     user = json.dumps({
         "harness": {k: parent.get(k) for k in EDITABLE},
         "version": parent["version"],
@@ -57,6 +79,7 @@ def propose(parent: dict, parent_eval: dict, rejected: list[dict]) -> dict:
                          "violations": parent_eval["violations"]},
         "current_failures": fails,
         "similar_past_failures": past,
+        "raindrop_signals": rd,
         "planner_instructions": PLANNER_SYSTEM,
         "trial_action_sequences": sequences,
         "planner_template": parent_eval["template"]["primary"],
@@ -74,5 +97,5 @@ def propose(parent: dict, parent_eval: dict, rejected: list[dict]) -> dict:
     if not out.get("_cached"):
         from engine import telemetry
         telemetry.llm_event("evolution", out["model"], SYSTEM, user, edit, parent["body_type"], parent["version"])
-    edit["model"], edit["retrieved"] = out["model"], past
+    edit["model"], edit["retrieved"], edit["raindrop"] = out["model"], past, rd
     return edit
