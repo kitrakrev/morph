@@ -133,6 +133,29 @@ html,body{margin:0;height:100%;background:#0a0f0d;overflow:hidden}
 <p style="position:absolute;left:128px;bottom:64px;width:1600px;font-size:28px;color:#4FC08D;font-weight:600">The model never changes. Only the harness does.</p>
 
 </section>
+<section class="slide" id="gate" data-transition="fade" style="background:#0F1E19;color:#F4F2EC;font-family:'IBM Plex Sans', Arial, sans-serif;padding:104px 128px 88px;display:flex;flex-direction:column;gap:36px">
+<p style="font-size:28px;letter-spacing:4px;text-transform:uppercase;color:#E0A458;font-weight:600">The referees 🔒</p>
+<h2 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:60px;font-weight:600;line-height:1.1">The agent can rewrite the harness. It can never rewrite how the harness is judged.</h2>
+<div style="display:grid;grid-template-columns:1fr 1.25fr;gap:28px">
+<div style="display:flex;flex-direction:column;gap:14px;background:#16302A;padding:36px;border-radius:16px">
+<p style="font-size:22px;letter-spacing:3px;text-transform:uppercase;color:#9FB8AE;font-weight:600">Verifier — judges one mission</p>
+<p style="font-size:26px;line-height:1.45;color:#D9E3DE">Reads only the <b>physics log</b> — never the planner's claims.</p>
+<p style="font-size:24px;line-height:1.4;color:#D9E3DE">• every goal task actually met?<br>• violations: no-fly, collision, battery death, payload<br>• battery reserve kept · deadline met</p>
+<p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:30px;font-weight:600;color:#7FD3A8;margin-top:auto">→ success / fail, energy, violations</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:10px;background:#16302A;padding:36px;border-radius:16px">
+<p style="font-size:22px;letter-spacing:3px;text-transform:uppercase;color:#9FB8AE;font-weight:600">Gate — judges one proposed edit</p>
+<p style="font-size:24px;line-height:1.4;color:#D9E3DE">Candidate re-runs train + regression missions. Kept only if <b>all six</b> pass:</p>
+<p style="font-size:24px;line-height:1.35;color:#D9E3DE"><span style="color:#7FD3A8;font-weight:600">✓ valid_eval</span> — the evaluation actually ran</p><p style="font-size:24px;line-height:1.35;color:#D9E3DE"><span style="color:#7FD3A8;font-weight:600">✓ legal_edit</span> — locked fields untouched — no-fly &amp; collision stay hard</p><p style="font-size:24px;line-height:1.35;color:#D9E3DE"><span style="color:#7FD3A8;font-weight:600">✓ train_improves</span> — more train missions succeed</p><p style="font-size:24px;line-height:1.35;color:#D9E3DE"><span style="color:#7FD3A8;font-weight:600">✓ safety_not_worse</span> — no new violations</p><p style="font-size:24px;line-height:1.35;color:#D9E3DE"><span style="color:#7FD3A8;font-weight:600">✓ no_regression</span> — the original task still passes</p><p style="font-size:24px;line-height:1.35;color:#D9E3DE"><span style="color:#7FD3A8;font-weight:600">✓ cost_ok</span> — cost per success not worse</p>
+<p style="font-size:24px;line-height:1.4;color:#E0A458;margin-top:6px">Verdict + evidence written to Atlas in one transaction. Held-out maps scored only <b>after</b> acceptance.</p>
+</div>
+</div>
+<div style="display:flex;gap:24px">
+<p style="flex:1;font-size:24px;line-height:1.4;color:#D9E3DE"><b style="color:#F4F2EC">No self-grading</b> — can't make “success” easier.</p>
+<p style="flex:1;font-size:24px;line-height:1.4;color:#D9E3DE"><b style="color:#F4F2EC">Safety not tradable</b> — v15/v16 let the drone die mid-air: rejected.</p>
+<p style="flex:1;font-size:24px;line-height:1.4;color:#D9E3DE"><b style="color:#F4F2EC">No overfitting</b> — 0→12/12 is on maps never used for selection.</p>
+</div>
+</section>
 <section class="slide" id="results" data-transition="fade" style="background:#F4F2EC;color:#14231D;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:start">
 <div style="display:flex;flex-direction:column;gap:28px">
 <p style="font-size:28px;letter-spacing:4px;text-transform:uppercase;color:#00784C;font-weight:600">Results · drone</p>
