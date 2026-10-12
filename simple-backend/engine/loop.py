@@ -161,5 +161,6 @@ if __name__ == "__main__":
     ap.add_argument("--mtype", default="single")
     ap.add_argument("--difficulty", default="medium")
     ap.add_argument("--lineage", help="store versions under this lineage name (default: the body name)")
+    ap.add_argument("--max-rejects", type=int, default=3, help="stop after this many consecutive rejections")
     a = ap.parse_args()
-    run(a.body, a.gens, mtype=a.mtype, difficulty=a.difficulty, lineage=a.lineage)
+    run(a.body, a.gens, mtype=a.mtype, difficulty=a.difficulty, lineage=a.lineage, max_rejects=a.max_rejects)

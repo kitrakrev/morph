@@ -88,6 +88,9 @@ def raindrop_evidence_rest(body: str, version: int, key: str) -> dict:
 def raindrop_evidence(body: str, version: int) -> dict:
     """Ask Raindrop what it saw for this harness version: Query API when RAINDROP_QUERY_API_KEY is set,
     else its MCP from a headless Claude step."""
+    import os as _os
+    if _os.getenv("MORPH_RAINDROP", "1") == "0":  # controlled experiment: Raindrop arm switched off
+        return {"source": "disabled"}
     import os
     key = os.getenv("RAINDROP_QUERY_API_KEY")
     if key:
@@ -150,7 +153,7 @@ def propose(parent: dict, parent_eval: dict, rejected: list[dict]) -> dict:
     from engine.harness import edit_budget
     system = SYSTEM.replace("EDIT_BUDGET", str(edit_budget(parent["version"])))
     try:
-        out = llm.claude_json(system, user)
+        out = llm.claude_json(system, user, cache=os.getenv("MORPH_EVOLVE_CACHE", "1") != "0")  # 0: fresh replicates
     except Exception as e:  # fall back to the free OpenRouter model
         print(f"    claude -p failed ({str(e)[:80]}); falling back to OpenRouter")
         out = llm.chat_json(system, user, tier="strong", max_tokens=2500)
