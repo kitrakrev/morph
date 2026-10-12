@@ -84,6 +84,34 @@ html,body{margin:0;height:100%;background:#0a0f0d;overflow:hidden}
 </div>
 <p style="font-size:20px;line-height:1.5;color:#9FB8AE">Sources: Song, Jeon et al., “Last-Mile Delivery in Healthcare: Drone Delivery for Blood Products in Rwanda”, Manufacturing &amp; Service Operations Management, via Knowledge at Wharton · integration cost: industry estimates (robot integrator cost guides, 2023–26) · Morph: live evidence viewer, kitrakrev.github.io/morph</p>
 </section>
+<section class="slide" id="usecases" data-transition="fade" style="background:#F4F2EC;color:#14231D;font-family:'IBM Plex Sans', Arial, sans-serif;padding:104px 128px 88px;display:flex;flex-direction:column;gap:36px">
+<p style="font-size:28px;letter-spacing:4px;text-transform:uppercase;color:#B5561C;font-weight:600">Real robots, real jobs — in MuJoCo</p>
+<h2 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:58px;font-weight:600;line-height:1.1">Each experiment is the robot's actual job, on DeepMind's model of the actual robot.</h2>
+<div style="display:flex;gap:26px;flex:1">
+<div style="flex:1;display:flex;flex-direction:column;gap:14px;background:#FFFFFF;padding:34px;border:1px solid #DDD8CC;border-radius:16px">
+<p style="font-size:21px;letter-spacing:3px;text-transform:uppercase;color:#6B736E;font-weight:600">MuJoCo Menagerie · skydio_x2</p>
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:40px;font-weight:600;line-height:1.1;color:#14231D">Skydio X2</h3>
+<p style="font-size:24px;line-height:1.4;color:#B5561C"><b>Real job:</b> first responders' situational awareness, search and rescue, and inspection of buildings, bridges and power lines.</p>
+<p style="font-size:24px;line-height:1.4;color:#3E4B45"><b>Our experiment:</b> survey a city block from the air (90% coverage) and return home; no-fly zone in place.</p>
+<p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:34px;font-weight:600;line-height:1.2;color:#2e7d32;margin-top:auto">v1 0/6 → v3 6/6 train, 4/4 regression, 0 violations</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:14px;background:#FFFFFF;padding:34px;border:1px solid #DDD8CC;border-radius:16px">
+<p style="font-size:21px;letter-spacing:3px;text-transform:uppercase;color:#6B736E;font-weight:600">MuJoCo Menagerie · unitree_go2</p>
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:40px;font-weight:600;line-height:1.1;color:#14231D">Unitree Go2</h3>
+<p style="font-size:24px;line-height:1.4;color:#B5561C"><b>Real job:</b> enterprise configuration sold for site inspection and security patrol rounds at plants and utilities.</p>
+<p style="font-size:24px;line-height:1.4;color:#3E4B45"><b>Our experiment:</b> walk an industrial plant map, stop and scan two inspection points, return to start.</p>
+<p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:34px;font-weight:600;line-height:1.2;color:#2e7d32;margin-top:auto">v1 0/12 → v3 12/12 held-out, 0 violations</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:14px;background:#FFFFFF;padding:34px;border:1px solid #DDD8CC;border-radius:16px">
+<p style="font-size:21px;letter-spacing:3px;text-transform:uppercase;color:#6B736E;font-weight:600">MuJoCo Menagerie · unitree_g1</p>
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:40px;font-weight:600;line-height:1.1;color:#14231D">Unitree G1</h3>
+<p style="font-size:24px;line-height:1.4;color:#B5561C"><b>Real job:</b> humanoid positioned for warehouse logistics and material handling.</p>
+<p style="font-size:24px;line-height:1.4;color:#3E4B45"><b>Our experiment:</b> carry a medkit across a hard 2D city (rubble, river) to a drop point and return home.</p>
+<p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:34px;font-weight:600;line-height:1.2;color:#2e7d32;margin-top:auto">6/6 train from bootstrap — no edit needed</p>
+</div>
+</div>
+<p style="font-size:20px;line-height:1.5;color:#6B736E">Robot models: google-deepmind/mujoco_menagerie (Skydio X2 provided by Skydio; Unitree Go2/G1). Each robot was given to Morph only as its model file — locomotion, mass and size were read from the model. Real-job sources: DroneLife, “Skydio markets X2E enterprise drone to governments” (2020); Unitree Go2 Ent / G1 product material. Results: kitrakrev.github.io/morph (MuJoCo backend).</p>
+</section>
 <section class="slide" id="how" data-transition="fade" style="background:#0F1E19;color:#F4F2EC;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
 <p style="font-size:28px;letter-spacing:4px;text-transform:uppercase;color:#4FC08D;font-weight:600">How it works</p>
 <h2 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:64px;font-weight:600;line-height:1.1">Two loops. One gate.</h2>
