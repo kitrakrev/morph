@@ -15,8 +15,26 @@ proven on missions it never saw. Every lesson is stored in MongoDB Atlas and can
 Live evidence viewer: **https://kitrakrev.github.io/morph/**
 
 Built solo at The Harness Engineering & Model Wrangling #SFTechWeek Hackathon (Oct 11 2026).
-Problem statement: **1 — Recursive Harnessing** (primary); touches **2 — Long Horizon** through
-persistent Atlas memory and checkpoint/resume.
+## Problem statement
+
+Robot fleets don't stay the same: bodies get damaged, refitted with new payloads, or replaced by another
+vendor's model. Every change means engineers rewrite rules, limits, routing and checks by hand and re-test —
+weeks per body. Prompt tuning doesn't fix this: the model isn't the broken part, the scaffolding around it is.
+
+**Morph:** give it only the robot's structure (or its MuJoCo model file), the terrain and the goal. It
+bootstraps a harness from the structure, runs missions, and an evolution agent proposes one bounded edit at a
+time to the harness — workflow graph, rules, beliefs, budgets, tool limits — grounded in its failures from
+Atlas memory and Raindrop signals. A locked gate keeps an edit only if training improves, safety is not worse
+and nothing regresses; held-out missions on unseen maps are scored only after acceptance. The planner model,
+physics and verifier never change.
+
+Hackathon track: **1 — Recursive Harnessing** (primary); touches **2 — Long Horizon** through persistent
+Atlas memory, versioned lineage and checkpoint/resume.
+
+**Data flow note:** every trial is sent to Raindrop (event + failure signals). The evolution agent queries
+Raindrop over MCP, and the evidence it used is stored in Atlas on the candidate's `evaluations` document, in
+the same transaction as the gate verdict — so each accepted or rejected edit records the Raindrop signals
+behind it.
 
 ---
 

@@ -76,6 +76,10 @@ const BACKENDS = {
            bodies: ["go2-plant-inspection", "x2-city-survey", "g1-warehouse-delivery", "drone", "fixed_wing_vtol"],
            videos: {drone: ["attempts-with-params-3d.mp4"], fixed_wing_vtol: ["mujoco-fixed_wing_vtol.mp4"]}},
 };
+const PROBLEM = `<div class="card" style="border-left:4px solid #00684a"><b>Problem statement</b><br><br>
+  Robot fleets don't stay the same: bodies get damaged, refitted with new payloads, or replaced by another vendor's model. Every change means engineers rewrite rules, limits, routing and checks by hand and re-test — weeks per body. Prompt tuning doesn't fix this: the model isn't the broken part, the scaffolding around it is.<br><br>
+  <b>Morph</b>: give it only the robot's structure (or its MuJoCo model file), the terrain and the goal. It bootstraps a harness from the structure, runs missions, and an evolution agent proposes one bounded edit at a time to the harness — workflow graph, rules, beliefs, budgets, tool limits — grounded in its failures from Atlas memory and Raindrop signals. A locked gate keeps an edit only if training improves, safety is not worse and nothing regresses; held-out missions on unseen maps are scored only after acceptance. The planner model, physics and verifier never change.<br><br>
+  <span class="muted">Hackathon track: <b>1 — Recursive Harnessing</b> (primary) · <b>2 — Long Horizon</b> (persistent Atlas memory, versioned lineage).</span></div>`;
 const REPLAY_ONLY = ["drone", "fixed_wing_vtol"];
 // every attempt on one mission, rendered on each physics backend with the live harness parameters + why-it-won card
 const PAIRS = {
@@ -105,6 +109,7 @@ const pages = {
   const h1 = v(1)?.splits?.heldout, hb = rows.filter(r => r.splits.heldout && r.verdict === "accepted").pop();
   return `<h2>Plug in a robot. The harness does the rest.</h2>
   <p class="sub">Robot fleets change bodies. Morph's harness rewrites its own rules, limits and workflow from its own failures, and keeps a change only when a locked verifier proves it on missions the agent never saw. The model never changes.</p>
+  ${PROBLEM}
   <div class="card"><div class="muted">Held-out ${esc(BODY)} missions, same planner model (Claude Haiku)</div>
    <div class="big">${frac(h1)} → ${frac(hb?.splits?.heldout)}</div>
    <div>v1 (bootstrap from structure) → v${hb?.version ?? "?"} (evolved) · violations: <b>${hb?.splits?.heldout?.viol ?? "—"}</b> · n = ${hb?.splits?.heldout?.n ?? "—"} held-out missions on unseen maps</div>
@@ -171,8 +176,8 @@ const pages = {
 
    ${Hd(438, "2", "DATA — MongoDB Atlas")}
    ${A([[X(4) + W / 2, y1 + H], [X(4) + W / 2, 270], [X(4) + W / 2, yD + 18 - 3]])}
-   ${B(X(1), yD + 18, "atlas", "MongoDB Atlas", ["trials · failures (autoEmbed, Voyage) · time-series metrics · checkpoints · Agent Engine memory",
-      "harness lineage (unique version index) · evaluations · held-out outcomes never reach agent-readable memory"], R - X(1), 70)}
+   ${B(X(1), yD + 18, "atlas", "MongoDB Atlas", ["trials · failures (autoEmbed text + multimodal map images, Voyage) · time-series metrics · checkpoints · Agent Engine memory",
+      "harness lineage (unique version index) · evaluations = gate verdict + the Raindrop evidence it used · held-out never reaches agent memory"], R - X(1), 70)}
 
    <text x="${X(0)}" y="562" class="sec"><tspan class="num">3</tspan>  LOOP 2 — EVOLVE THE HARNESS  ·  reads right → left</text>
    ${A([[X(5) + W / 2, yD + 88], [X(5) + W / 2, y2 - 3]])}
@@ -198,7 +203,7 @@ const pages = {
     .map(([c,l]) => `<span class="lg"><i style="background:${ACC[c]}"></i>${l}</span>`).join("") +
     `<span class="lg"><svg width="28" height="10"><path d="M1,5 L22,5" stroke="#2e7d32" stroke-width="2"/><path d="M20,1 L27,5 L20,9z" fill="#2e7d32"/></svg>pass / accept</span>` +
     `<span class="lg"><svg width="28" height="10"><path d="M1,5 L22,5" stroke="#c62828" stroke-width="2" stroke-dasharray="4 3"/><path d="M20,1 L27,5 L20,9z" fill="#c62828"/></svg>fail / reject</span>`;
-  return `<h2>How it works</h2><p class="sub">One cycle: Loop 1 runs missions with the current harness; Loop 2 proposes one edit, re-runs, and the gate decides. The model never changes.</p>
+  return `<h2>How it works</h2><p class="sub">One cycle: Loop 1 runs missions with the current harness; Loop 2 proposes one edit, re-runs, and the gate decides. The model never changes.</p>${PROBLEM}
    <div class="card"><div class="legend">${legend}</div>${svg}</div>
    <div class="card"><b>Why this is harness learning, not prompt tuning:</b> accepted edits changed the <i>workflow graph</i> (a feasibility check and a replan branch to a safer fallback, v8), the harness's <i>beliefs</i> and <i>budgets</i>, and body-specific <i>rules</i> (v17). The model, physics and verifier never change.</div>`;
  },
