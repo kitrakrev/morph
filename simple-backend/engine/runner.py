@@ -85,8 +85,15 @@ def run_mission(h: dict, template: dict, mission: dict, run_id: str | None = Non
                              "energy": score["energy_wh"]})
     if mission["split"] != "heldout":  # held-out outcomes never reach agent-readable memory
         if not score["success"]:
-            db().failures.insert_one({"body": h["body_type"], "version": h["version"], "mission_id": mission["id"],
-                                      "summary": f"{h['body_type']} v{h['version']}: {diagnosis}", "ts": time.time()})
+            doc = {"body": h["body_type"], "version": h["version"], "mission_id": mission["id"],
+                   "summary": f"{h['body_type']} v{h['version']}: {diagnosis}", "ts": time.time()}
+            try:  # failure picture + diagnosis -> one multimodal vector (index failures_mm)
+                from engine import multimodal
+                doc["mm_embedding"] = multimodal.embed(doc["summary"],
+                                                       multimodal.final_frame_png(mission, st["program"]))
+            except Exception as e:
+                print(f"    multimodal embedding skipped ({str(e)[:60]})")
+            db().failures.insert_one(doc)
         Memory(h["body_type"]).save_episode(
             title=f"{mission['id']} v{h['version']}",
             content=f"{'SUCCESS' if score['success'] else 'FAIL'} {h['body_type']} carrying "

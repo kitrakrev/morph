@@ -1,0 +1,1 @@
+[{"version": 1, "verdict": "bootstrap", "fields": [], "era": "current", "splits": {"regression": {"ok": 4, "n": 4, "viol": 0}, "train": {"ok": 4, "n": 6, "viol": 16}}, "reason": null, "prediction": null, "rationale": null, "checks": null, "measured": null}]

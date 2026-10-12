@@ -61,7 +61,7 @@ def final_frame_png(mission: dict, program: list[dict]) -> bytes:
     return buf.getvalue()
 
 
-def embed(text: str | None, png: bytes | None) -> list[float]:
+def embed(text: str | None, png: bytes | None = None, input_type: str | None = None) -> list[float]:
     content = []
     if text:
         content.append({"type": "text", "text": text})
@@ -69,7 +69,8 @@ def embed(text: str | None, png: bytes | None) -> list[float]:
         content.append({"type": "image_base64",
                         "image_base64": "data:image/png;base64," + base64.b64encode(png).decode()})
     r = requests.post(URL, timeout=90, headers={"Authorization": f"Bearer {_key()}"},
-                      json={"inputs": [{"content": content}], "model": MODEL})
+                      json={"inputs": [{"content": content}], "model": MODEL,
+                            **({"input_type": input_type} if input_type else {})})
     r.raise_for_status()
     return r.json()["data"][0]["embedding"]
 

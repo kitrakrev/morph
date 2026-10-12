@@ -28,13 +28,21 @@ Do not repeat a previously rejected edit.""" % (list(EDITABLE),)
 
 def similar_failures(body: str, query: str, k: int = 6) -> list[str]:
     """Hybrid retrieval: autoEmbed vector search + keyword search fused with $rankFusion."""
-    pipe = [{"$rankFusion": {"input": {"pipelines": {
+    pipelines = {
         "vec": [{"$vectorSearch": {"index": "failures_vec", "path": "summary", "query": {"text": query},
                                    "filter": {"body": body}, "limit": 20, "numCandidates": 100}}],
         "kw": [{"$search": {"index": "failures_text", "compound": {
             "must": [{"text": {"query": query, "path": "summary"}}],
             "filter": [{"equals": {"path": "body", "value": body}}]}}}, {"$limit": 20}],
-    }}}}, {"$limit": k}, {"$project": {"_id": 0, "summary": 1}}]
+    }
+    try:  # third pipeline: failure pictures (+ diagnosis) searched cross-modally with the text query
+        from engine import multimodal
+        qv = multimodal.embed(query, input_type="query")
+        pipelines["mm"] = [{"$vectorSearch": {"index": "failures_mm", "path": "mm_embedding", "queryVector": qv,
+                                              "filter": {"body": body}, "limit": 20, "numCandidates": 100}}]
+    except Exception as e:
+        print(f"    multimodal query skipped ({str(e)[:60]})")
+    pipe = [{"$rankFusion": {"input": {"pipelines": pipelines}}}, {"$limit": k}, {"$project": {"_id": 0, "summary": 1}}]
     try:
         return [d["summary"] for d in db().failures.aggregate(pipe)]
     except Exception as e:  # index still building or no failures yet: say so, never silently

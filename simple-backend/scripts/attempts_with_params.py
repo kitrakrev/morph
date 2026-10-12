@@ -30,7 +30,13 @@ mission = mission_from_id(MID)
 SPEC = None
 if "@" in MID:  # robot onboarded from a spec file: apply its structure + capabilities
     import yaml
-    SPEC = yaml.safe_load(open(f"simple-backend/robots/{MID.split('@')[1]}.yaml"))
+    import os
+    import re
+    name = MID.split("@")[1]
+    path = f"simple-backend/robots/{name}.yaml"
+    if not os.path.exists(path):  # re-run lineages like medic-drone-r3 use the base spec
+        path = f"simple-backend/robots/{re.sub(r'-r\d+$', '', name)}.yaml"
+    SPEC = yaml.safe_load(open(path))
     mission["robots"][0]["structure"] = SPEC["structure"]
     if SPEC.get("capabilities"):
         mission["robots"][0]["capabilities"] = SPEC["capabilities"]
@@ -153,13 +159,16 @@ ho = scores_ho = None
 fig = plt.figure(figsize=(16, 9), facecolor="#FBFBF8")
 fig.text(0.05, 0.9, title, fontsize=32, fontweight="bold", color=INK)
 fig.text(0.05, 0.845, f"{BODY} · {MID} · same mission, same planner model", fontsize=15, color=MUTED)
-y = 0.76
+n_lines = sum(min(len(textwrap.wrap(t, 110)), 3) for _, t, _ in rows) + len(rows)
+fs = 14 if n_lines <= 16 else 12 if n_lines <= 21 else 10.5  # shrink so the card always fits
+step = 0.045 * fs / 14
+y = 0.77
 for label, text, color in rows:
-    fig.text(0.05, y, label, fontsize=14, fontweight="bold", color=MUTED)
-    for part in textwrap.wrap(text, 96)[:4]:
-        fig.text(0.21, y, part.replace("$", r"\$"), fontsize=14, color=color)
-        y -= 0.045
-    y -= 0.02
+    fig.text(0.05, y, label, fontsize=fs, fontweight="bold", color=MUTED)
+    for part in textwrap.wrap(text, int(96 * 14 / fs))[:3]:
+        fig.text(0.21, y, part.replace("$", r"\$"), fontsize=fs, color=color)
+        y -= step
+    y -= step * 0.45
 card = f"out/attempts/why{TAG}.png"
 fig.savefig(card, facecolor="#FBFBF8", dpi=110)
 plt.close(fig)
