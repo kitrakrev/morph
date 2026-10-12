@@ -50,7 +50,15 @@ def plan_template(h: dict, body: dict, terrain_summary: dict | None = None) -> d
     user = json.dumps({"body": body, "harness": harness_view, "reports": reports,
                        "memory": context(h, body.get("kind", "?")), "symbols": SYMBOLS})
     # planner model is FIXED for the whole day (Claude Haiku via Claude Code headless); no fallback
-    out = llm.claude_json(SYSTEM, user, model=PLANNER_MODEL)
+    system = SYSTEM
+    if h.get("manifest"):  # spec robots: offer only the skills the robot's controller declares
+        sigs = {"move_to": "move_to(pos)", "fly_to": "fly_to(pos, alt, avoid_nofly)", "pick": "pick(item)",
+                "drop": "drop(item)", "charge": "charge()", "scan": "scan()", "handoff": "handoff(robot_id)"}
+        allowed = ", ".join(sigs[k] for k in h["manifest"] if k in sigs)
+        system = SYSTEM.replace(
+            "Primitives: move_to(pos), fly_to(pos, alt, avoid_nofly), pick(item), drop(item), charge(), scan().",
+            f"Primitives (this robot's declared capabilities only): {allowed}.")
+    out = llm.claude_json(system, user, model=PLANNER_MODEL)
     tpl = out["json"]
     if not out.get("_cached"):
         from engine import telemetry

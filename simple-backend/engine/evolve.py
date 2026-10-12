@@ -42,6 +42,10 @@ def similar_failures(body: str, query: str, k: int = 6) -> list[str]:
         return [d["summary"] for d in db().failures.find({"body": body}, {"summary": 1}).sort("ts", -1).limit(k)]
 
 
+import os
+
+HINT = os.getenv("MORPH_HINT", "").strip()  # explicit human hint: logged with every decision, never hidden
+
 RAINDROP_TOOLS = ["mcp__raindrop__raindrop_skills", "mcp__raindrop__list_signals", "mcp__raindrop__list_events",
                   "mcp__raindrop__search_events", "mcp__raindrop__get_event_count"]
 
@@ -85,6 +89,7 @@ def propose(parent: dict, parent_eval: dict, rejected: list[dict]) -> dict:
         "planner_template": parent_eval["template"]["primary"],
         "planner_fallback": parent_eval["template"]["fallback"],
         "rejected_edits": [{"changes": r["changes"], "reason": r["reason"]} for r in rejected],
+        **({"operator_hint": HINT} if HINT else {}),
     }, default=str)
     from engine.harness import edit_budget
     system = SYSTEM.replace("EDIT_BUDGET", str(edit_budget(parent["version"])))
@@ -98,4 +103,6 @@ def propose(parent: dict, parent_eval: dict, rejected: list[dict]) -> dict:
         from engine import telemetry
         telemetry.llm_event("evolution", out["model"], SYSTEM, user, edit, parent["body_type"], parent["version"])
     edit["model"], edit["retrieved"], edit["raindrop"] = out["model"], past, rd
+    if HINT:
+        edit["operator_hint"] = HINT
     return edit

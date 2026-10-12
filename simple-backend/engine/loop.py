@@ -21,6 +21,29 @@ def _terrain(spec: dict | None) -> dict:
     return {k: t[k] for k in ("difficulty",) if k in t}
 
 
+def crosses_nofly(m: dict) -> bool:
+    """True if a direct flight at the robot's lowest allowed altitude, without avoidance, enters a no-fly zone."""
+    from sim import tier2
+    r, it, to = m["robots"][0], m["items"][0], m["goal"]["deliver"]["to"]
+    lo = ((r.get("capabilities") or {}).get("fly_to") or {}).get("alt", [1, 8])[0]
+    prog = [{"robot": r["id"], "skill": "fly_to", "args": {"pos": it["pos"], "alt": lo}},
+            {"robot": r["id"], "skill": "pick", "args": {"item": it["id"]}},
+            {"robot": r["id"], "skill": "fly_to", "args": {"pos": to, "alt": lo}}]
+    return any(e["kind"] == "nofly" for e in tier2.simulate(m, prog).events)
+
+
+def train_set(body: str, n: int, difficulty: str, mtype: str, spec: dict | None) -> list[dict]:
+    """Train missions. A spec may ask for half of them to require no-fly avoidance (so the problem is visible
+    in training, not only on held-out maps). Held-out generation is never touched."""
+    base = patch(mission_set(body, "train", n, difficulty, mtype), spec)
+    if not (spec or {}).get("training", {}).get("include_nofly_routes"):
+        return base
+    pool = patch(mission_set(body, "train", 60, difficulty, mtype), spec)
+    cross = [m for m in pool if crosses_nofly(m)][: n // 2]
+    keep = [m for m in base if m["id"] not in {c["id"] for c in cross}][: n - len(cross)]
+    return keep + cross
+
+
 def patch(missions: list[dict], spec: dict | None) -> list[dict]:
     """Apply a robot spec file: its structure and declared capabilities replace the preset body's."""
     if not spec:
@@ -77,7 +100,7 @@ def run(body: str, gens: int, n_train: int = 6, n_reg: int = 4, max_rejects: int
     lineage = lineage or body
     if spec:
         difficulty = _terrain(spec).get("difficulty", difficulty)
-    train = patch(mission_set(body, "train", n_train, difficulty, mtype), spec)
+    train = train_set(body, n_train, difficulty, mtype, spec)
     # regression always guards the original task (medium / single), so a new skill can't break the old one
     reg = patch(mission_set(body, "regression", n_reg), spec)
     parent = harness.latest(lineage)

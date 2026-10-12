@@ -44,6 +44,7 @@ def commit(cand: dict, decision: dict, edit: dict) -> dict:
           "prediction": edit.get("prediction"), "measured": {"train_success_delta":
               decision["metrics"]["candidate"]["train"] - decision["metrics"]["parent"]["train"]},
           "retrieved_failures": edit.get("retrieved", []), "raindrop": edit.get("raindrop"),
+          "operator_hint": edit.get("operator_hint"),
           "model": edit.get("model"), **decision,
           "ts": time.time()}
     with client().start_session() as s:

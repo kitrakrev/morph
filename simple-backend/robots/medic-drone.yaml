@@ -12,3 +12,5 @@ capabilities:          # declared by the robot's controller; anything else is re
   drop: {}
   charge: {}
 terrain: {dims: 3, difficulty: medium}
+training:
+  include_nofly_routes: true   # half the train missions need no-fly avoidance, so the evolver can see the problem

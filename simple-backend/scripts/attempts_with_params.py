@@ -23,6 +23,7 @@ MID = sys.argv[2] if len(sys.argv) > 2 else "train-drone-100"
 TAG = "" if BODY == "drone" else f"-{BODY}"
 R.MAX_FRAMES, R.HOLD_S, R.FPS = 40, 3.0, 6
 INK, MUTED, NEW, OK, BAD = "#1d2420", "#6b736e", "#00784C", "#2e7d32", "#c62828"
+ACC_HINT = "#b5561c"
 FIELDS = ["workflow", "rules", "tool_specs", "beliefs", "budgets", "retrieval_policy"]
 
 mission = mission_from_id(MID)
@@ -127,6 +128,8 @@ if win:
     title = f"Why harness v{win} won"
     for d in (wh.get("diff") if isinstance(wh.get("diff"), list) else []):
         rows.append(("what changed", f"{d['field']}: {fmt(d['field'], d['old'])}  →  {fmt(d['field'], d['new'])}", NEW))
+    if (ev or {}).get("operator_hint"):
+        rows.append(("operator hint", "human hint given to the evolver (logged): " + ev["operator_hint"], ACC_HINT))
     if wh.get("rationale"):
         rows.append(("evolver's reasoning", wh["rationale"], INK))
     m = (ev or {}).get("metrics", {})
