@@ -16,14 +16,23 @@ for t in db().trials.find({"body": lin, "harness_version": 1, "split": {"$in": [
 print(best[0] if best else "")
 PY
 }
-for lin in drone-r2 fixed_wing_vtol-r2 medic-drone-r4; do
-  until grep -q '^RESULT' out/rerun-$lin.log 2>/dev/null; do sleep 20; done
-  mid=$(pick $lin)
-  echo "[$lin] $(grep '^RESULT' out/rerun-$lin.log | cut -c1-200) -> render $mid"
+publish() {
+  lin=$1; mid=$(pick $lin)
+  echo "[$(date +%H:%M)] [$lin] $(grep '^RESULT' out/rerun-$lin.log | cut -c1-160) -> render $mid"
   [ -n "$mid" ] && PYTHONPATH=simple-backend uv run python simple-backend/scripts/attempts_with_params.py $lin "$mid" 2>&1 | grep -v DEBUG | tail -1 \
     && cp out/attempts-with-params-$lin.mp4 docs/out/
   PYTHONPATH=simple-backend uv run python simple-backend/viewer/export_static.py docs 2>&1 | grep -v DEBUG | tail -1
   git add -A docs && git commit -qm "data: $lin full-evidence rerun results + video
 
 Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>" && git pull --rebase -q && git push -q && echo "[$lin] pushed $(git log --oneline -1)"
+}
+pending="drone-r2 fixed_wing_vtol-r2 medic-drone-r4"
+while [ -n "$pending" ]; do            # check every minute; publish each run the moment it finishes
+  next=""
+  for lin in $pending; do
+    if grep -q '^RESULT' out/rerun-$lin.log 2>/dev/null; then publish $lin; else next="$next $lin"; fi
+  done
+  pending=$(echo $next)
+  [ -n "$pending" ] && sleep 60
 done
+echo "[$(date +%H:%M)] all reruns published"
