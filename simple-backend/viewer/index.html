@@ -338,8 +338,10 @@ function graph(h, base) {
   return svg + `</svg>`;
 }
 
+const GLOBAL_PAGES = ["how", "matrix", "feed", "stack", "scope"];  // same for every backend / body: no selectors
 async function go(p) {
   clearInterval(feedTimer);
+  ["#ksel", "#bsel"].forEach(id => { const el = $(id); if (el) el.parentElement.style.display = GLOBAL_PAGES.includes(p) ? "none" : ""; });
   document.querySelectorAll("nav a").forEach(a => a.classList.toggle("on", a.dataset.p === p));
   $("#main").innerHTML = '<p class="muted">loading…</p>';
   try { $("#main").innerHTML = await pages[p](); } catch (e) { $("#main").innerHTML = `<p class="bad">${esc(e)}</p>`; }
