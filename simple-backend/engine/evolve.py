@@ -58,8 +58,43 @@ RAINDROP_TOOLS = ["mcp__raindrop__raindrop_skills", "mcp__raindrop__list_signals
                   "mcp__raindrop__search_events", "mcp__raindrop__get_event_count"]
 
 
+def raindrop_evidence_rest(body: str, version: int, key: str) -> dict:
+    """Raindrop evidence straight from the Query API (no MCP): signal counts and failure outputs for one
+    harness version's train / regression trials. Retries while the trial events are still being indexed."""
+    import collections
+    import datetime as dt
+    import time
+
+    import requests
+    since = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    params = {"user_id": body, "convo_id": f"{body}-v{version}", "event_name": "mission_trial", "limit": 100,
+              "timestamp[gte]": since, "properties[split][neq]": "heldout"}
+    events = []
+    for _ in range(4):
+        r = requests.get("https://query.raindrop.ai/v1/events", params=params, timeout=30,
+                         headers={"Authorization": f"Bearer {key}"})
+        r.raise_for_status()
+        events = r.json().get("data", [])
+        if events:
+            break
+        time.sleep(20)  # ingestion -> query index lag
+    counts = collections.Counter(sig["name"] for e in events for sig in (e.get("signals") or []))
+    fails = [(e.get("assistant_output") or "")[:160] for e in events
+             if not any("deliver" in sig["name"].lower() for sig in (e.get("signals") or []))]
+    return {"source": "raindrop-query-api", "signals": dict(counts), "failures": list(dict.fromkeys(fails))[:3],
+            "events_seen": len(events)}
+
+
 def raindrop_evidence(body: str, version: int) -> dict:
-    """Ask Raindrop (via its MCP, from a headless Claude step) what it saw for this harness version."""
+    """Ask Raindrop what it saw for this harness version: Query API when RAINDROP_QUERY_API_KEY is set,
+    else its MCP from a headless Claude step."""
+    import os
+    key = os.getenv("RAINDROP_QUERY_API_KEY")
+    if key:
+        try:
+            return raindrop_evidence_rest(body, version, key)
+        except Exception as e:
+            print(f"    raindrop query API failed ({str(e)[:80]}); trying MCP")
     prompt = (f"Use the Raindrop MCP tools (call raindrop_skills('explore') first). For user_id '{body}', "
               f"event 'mission_trial', convo_id '{body}-v{version}', last 24h: count matched signals per signal name "
               f"(Battery death, Reserve breach, Nofly violation, Delivered) and quote up to 3 distinct failure outputs "

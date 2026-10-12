@@ -160,5 +160,6 @@ if __name__ == "__main__":
     ap.add_argument("--gens", type=int, default=4)
     ap.add_argument("--mtype", default="single")
     ap.add_argument("--difficulty", default="medium")
+    ap.add_argument("--lineage", help="store versions under this lineage name (default: the body name)")
     a = ap.parse_args()
-    run(a.body, a.gens, mtype=a.mtype, difficulty=a.difficulty)
+    run(a.body, a.gens, mtype=a.mtype, difficulty=a.difficulty, lineage=a.lineage)

@@ -85,7 +85,7 @@ def validate(h: dict) -> list[str]:
                 and get(d.get("new") or {}, "fly_to.avoid_nofly") is not True:
             errs.append("tool_specs.fly_to.avoid_nofly is a locked safety switch: it cannot be turned off")
     for s in h.get("skills", []):
-        if not isinstance(s, dict) or any(st.get("skill") not in PRIMITIVES for st in s.get("steps", [])):
+        if not isinstance(s, dict) or any(not isinstance(st, dict) or st.get("skill") not in PRIMITIVES for st in s.get("steps", [])):
             errs.append(f"composed skill {s if not isinstance(s, dict) else s.get('name')} uses non-primitive")
     return errs
 
