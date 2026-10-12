@@ -322,6 +322,8 @@ function evidence(h) {
   const rd = h.raindrop;
   let rdHtml;
   if (!rd) rdHtml = `<span class="muted">not used — this decision was made before Raindrop was wired into the evolution agent</span>`;
+  else if (rd.status === "not_indexed" || (rd.source === "raindrop-mcp" && !rd.error && !(rd.events_seen > 0)))
+    rdHtml = `<span class="muted">not indexed yet — Raindrop had received this version's events but not made them searchable when the agent asked (ingestion delay), so the agent got no Raindrop evidence</span>`;
   else if (rd.source !== "raindrop-mcp" || rd.error) rdHtml = `<span class="bad">unavailable for this decision</span> <span class="muted">${esc(rd.error || rd.source || "")}</span>`;
   else {
     const sig = Object.entries(rd.signals || {}).map(([k, v]) => `<span class="pill">${esc(k)}: <b>${v}</b></span>`).join(" ");

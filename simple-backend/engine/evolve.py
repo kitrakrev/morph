@@ -65,13 +65,26 @@ def raindrop_evidence(body: str, version: int) -> dict:
               f"(Battery death, Reserve breach, Nofly violation, Delivered) and quote up to 3 distinct failure outputs "
               f"(first 160 chars). Ignore events whose split property is 'heldout'. "
               f'Reply ONLY JSON: {{"signals": {{name: count}}, "failures": [str], "events_seen": int}}')
-    try:
-        out = llm.claude_json("You are a read-only Raindrop analyst.", prompt, model="sonnet", tools=RAINDROP_TOOLS,
-                              cache=False, timeout=240, retries=0)
-        return {"source": "raindrop-mcp", **out["json"]}
-    except Exception as e:
-        print(f"    raindrop evidence unavailable ({str(e)[:80]})")
-        return {"source": "unavailable"}
+    import time
+    from engine import telemetry
+    telemetry.flush()  # make sure this version's trial events have left the process
+    tries, wait = int(os.getenv("MORPH_RAINDROP_TRIES", "3")), int(os.getenv("MORPH_RAINDROP_WAIT", "90"))
+    last = {"source": "unavailable"}
+    for i in range(tries):
+        try:
+            out = llm.claude_json("You are a read-only Raindrop analyst.", prompt, model="sonnet", tools=RAINDROP_TOOLS,
+                                  cache=False, timeout=240, retries=0)
+            last = {"source": "raindrop-mcp", **out["json"]}
+        except Exception as e:
+            last = {"source": "unavailable", "error": str(e)[:120]}
+        if last.get("source") == "raindrop-mcp" and not last.get("error") and (last.get("events_seen") or 0) > 0:
+            return last  # Raindrop has indexed this version's events
+        if i < tries - 1:
+            print(f"    raindrop: no indexed events yet for {body} v{version}; retry in {wait}s ({i + 1}/{tries})")
+            time.sleep(wait)
+    if last.get("source") == "raindrop-mcp" and not last.get("error"):
+        last = {**last, "status": "not_indexed", "signals": None}  # empty because of ingestion delay, not zero
+    return last
 
 
 def propose(parent: dict, parent_eval: dict, rejected: list[dict]) -> dict:
