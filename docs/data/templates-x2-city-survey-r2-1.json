@@ -1,0 +1,1 @@
+{"primary": ["fly_to(pos=$TARGETS[0], alt=2, avoid_nofly=True)", "scan()", "fly_to(pos=[0, 0, 0], alt=2, avoid_nofly=True)"]}
