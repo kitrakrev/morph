@@ -33,8 +33,9 @@ Atlas memory, versioned lineage and checkpoint/resume.
 
 **Data flow note:** every trial is sent to Raindrop (event + failure signals). The evolution agent queries
 Raindrop over MCP, and the evidence it used is stored in Atlas on the candidate's `evaluations` document, in
-the same transaction as the gate verdict — so each accepted or rejected edit records the Raindrop signals
-behind it.
+the same transaction as the gate verdict. Raindrop entered the evolution loop partway through the day: the
+drone decisions (v2–v20) predate it and used Atlas `$rankFusion` failure memory only; fixed-wing v2 and the
+medic-drone decisions record the Raindrop signals they used (shown on each lineage card in the viewer).
 
 ---
 
