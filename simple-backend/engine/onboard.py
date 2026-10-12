@@ -18,8 +18,11 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("spec")
     ap.add_argument("--gens", type=int, default=3)
+    ap.add_argument("--lineage", help="lineage name in Atlas (default: the spec's id)")
     a = ap.parse_args()
     spec = yaml.safe_load(open(a.spec))
+    if a.lineage:
+        spec["id"] = a.lineage
     try:
         bootstrap(spec["structure"], spec.get("capabilities"))  # validates locomotion vocabulary first
     except UnsupportedBody as e:
