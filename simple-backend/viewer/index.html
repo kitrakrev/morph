@@ -38,7 +38,7 @@
   .dg .ar2 { fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round } .dg .ar2.n { stroke:#7d847f }
   .dg .ar2.ok { stroke:#2e7d32 } .dg .ar2.bad { stroke:#c62828; stroke-dasharray:6 4 }
   .dg .pill { fill:var(--panel); stroke-width:1.2 } .dg .pill.ok { stroke:#2e7d32 } .dg .pill.bad { stroke:#c62828 } .dg .pill.n { stroke:#7d847f }
-  .dg .pl { font-size:10px; font-weight:600 } .dg .pl.ok { fill:#2e7d32 } .dg .pl.bad { fill:#c62828 }
+  .dg .pl { font-size:10px; font-weight:600 } .dg .ar2.rdp { stroke:#4b57c8 } .dg .pill.rdl { stroke:#4b57c8 } .dg .pl.rdl { fill:#4b57c8 } .dg .pl.ok { fill:#2e7d32 } .dg .pl.bad { fill:#c62828 }
   .lg i { display:inline-block; width:12px; height:12px; border-radius:3px }
   .legend { display:flex; gap:16px; flex-wrap:wrap; margin-bottom:8px; font-size:12px; color:var(--muted) } .lg { display:inline-flex; align-items:center; gap:6px } .dg .ar { stroke:#7a7f7b; stroke-width:1.4; fill:none; marker-end:url(#ah) }
   .dg .arg { stroke:#2e7d32 } .dg .arr { stroke:#c62828; stroke-dasharray:5 3 } .dg .lbl { font-size:10px; fill:var(--muted) }
@@ -146,8 +146,8 @@ const pages = {
   const Band = (y, h, tint) => `<rect x="12" y="${y}" width="${R + 4}" height="${h}" rx="14" fill="${tint}" class="band"/>`;
   const y0 = 46, y1 = 186, yR = 300, yD = 430, y2 = 582, yN = 708, cy1 = y1 + H / 2, cy2 = y2 + H / 2;
   const mk = (id, c) => `<marker id="ah-${id}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${c}"/></marker>`;
-  const svg = `<svg class="dg" viewBox="0 0 ${R + 28} 800" width="100%" role="img" aria-label="Morph system diagram">
-   <defs>${mk("n", "#7d847f")}${mk("ok", "#2e7d32")}${mk("bad", "#c62828")}
+  const svg = `<svg class="dg" viewBox="0 0 ${R + 46} 800" width="100%" role="img" aria-label="Morph system diagram">
+   <defs>${mk("n", "#7d847f")}${mk("ok", "#2e7d32")}${mk("bad", "#c62828")}${mk("rd", "#4b57c8")}
      <filter id="sh" x="-5%" y="-5%" width="110%" height="120%"><feDropShadow dx="0" dy="1.5" stdDeviation="2" flood-opacity="0.12"/></filter></defs>
    ${Band(14, 112, "rgba(120,120,120,0.04)")}${Band(140, 262, "rgba(46,125,50,0.05)")}${Band(416, 112, "rgba(0,104,74,0.05)")}${Band(540, 246, "rgba(199,119,0,0.05)")}
    ${Hd(36, "0", "INPUT — the only thing a user supplies")}
@@ -181,6 +181,8 @@ const pages = {
 
    <text x="${X(0)}" y="562" class="sec"><tspan class="num">3</tspan>  LOOP 2 — EVOLVE THE HARNESS  ·  reads right → left</text>
    ${A([[X(5) + W / 2, yD + 88], [X(5) + W / 2, y2 - 3]])}
+   <path d="M${X(5) + W},${y1 + H / 2} L${R + 16},${y1 + H / 2} L${R + 16},${y2 + H / 2} L${X(5) + W + 3},${y2 + H / 2}" class="ar2 rdp" marker-end="url(#ah-rd)"/>
+   ${L(R + 16, (y1 + y2) / 2 + 30, "signals", "rdl")}
    ${B(X(5), y2, "atlas", "Evidence", ["$rankFusion over failures", "+ Raindrop signals"])}
    ${A([[X(5), cy2], [X(4) + W + 3, cy2]])}
    ${B(X(4), y2, "", "Evolution agent", ["Claude Sonnet", "ONE edit + prediction"])}
