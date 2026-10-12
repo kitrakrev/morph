@@ -21,6 +21,7 @@ from sim.missions import BODIES
 BODY = sys.argv[1] if len(sys.argv) > 1 else "drone"  # lineage name (e.g. drone, hybrid, medic-drone)
 MID = sys.argv[2] if len(sys.argv) > 2 else "train-drone-100"
 TAG = "" if BODY == "drone" else f"-{BODY}"
+BASE = __import__("re").sub(r"-r\d+$", "", BODY)
 R.MAX_FRAMES, R.HOLD_S, R.FPS = 40, 3.0, 6
 INK, MUTED, NEW, OK, BAD = "#1d2420", "#6b736e", "#00784C", "#2e7d32", "#c62828"
 ACC_HINT = "#b5561c"
@@ -66,14 +67,15 @@ def right_panel(ax, n, v, h, prev, t):
                     family="DejaVu Sans Mono" if not bold else "DejaVu Sans", transform=ax.transAxes, va="top")
             y -= gap
 
-    s = SPEC["structure"] if SPEC else BODIES[BODY]
+    import re as _re
+    s = SPEC["structure"] if SPEC else BODIES[_re.sub(r"-r\d+$", "", BODY)]
     loco = ", ".join(s["locomotion"])
     item = mission["goal"]["deliver"]
     line("INPUTS", MUTED, 10, True)
     line(f"robot    {BODY} · {loco} · {s['mass_kg']} kg · {s['battery_wh']} Wh · payload {s['payload_bay_kg']} kg")
     dims = mission["terrain"]["dims"]
     line(("terrain  3D city · no-fly below z=6 · wind · chargers" if dims == 3 else f"terrain  2D city · {mission['terrain'].get('difficulty', 'medium')} · rubble · river · chargers")
-         + (" · land on open cells only" if BODY == "fixed_wing_vtol" else ""))
+         + (" · land on open cells only" if BASE == "fixed_wing_vtol" else ""))
     if SPEC and SPEC.get("capabilities"):
         line("caps     " + ", ".join(SPEC["capabilities"]) + " (declared in spec file)")
     line(f"goal     deliver {item['item']} ({item['weight_kg']} kg) · 0 violations · ≥20% reserve")
