@@ -533,8 +533,8 @@ def render3d(sim: Sim, path: str, title: str = "", follow: str | None = None, pa
             look = target if look is None else look + (target - look) * min(1.0, 0.08 * stride)
             air = target[2] > 0.5
             cam.lookat[:] = look
-            cam.distance = 13.0 if air else 6.5
-            cam.elevation = -80 if air else -42  # steep when airborne: buildings never block the view
+            cam.distance = 13.0 if air else 7.5
+            cam.elevation = -80 if air else -78  # near-overhead: buildings never hide the robot  # steep when airborne: buildings never block the view
             cam.azimuth = 135 + 12 * math.sin(f["t"] / 25)
             renderer.update_scene(data, cam)
             img = _hud(renderer.render(), title, f, speed, fonts) if hud else renderer.render()

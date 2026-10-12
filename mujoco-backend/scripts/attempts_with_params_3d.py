@@ -9,6 +9,7 @@ Ends with a "why this harness won" card: what changed from v1, the evolver's rea
 evidence, and how every other attempt lost.
 """
 import json
+import os
 import subprocess
 import sys
 import textwrap
@@ -35,23 +36,31 @@ SUFFIX = ("" if BODY == "drone" else f"-{BODY}")
 TAG = "grid" if GRID else "3d"
 CW, CH = 1920, 1080
 BG, INK, MUTED, NEW, OK, BAD = (251, 251, 248), (29, 36, 32), (107, 115, 110), (0, 120, 76), (46, 125, 50), (198, 40, 40)
-FIELDS = ["workflow", "rules", "tool_specs", "beliefs", "budgets", "retrieval_policy"]
+FIELDS = ["workflow", "rules", "tool_specs", "beliefs", "budgets", "retrieval_policy", "skills"]
 F_TITLE, F_H, F_B, F_S = _font(30), _font(24), _font(17), _font(15)
 
 p = MID.split("-")
 if SPEC:
     from sim import spec as _spec
-    _spec.load(SPEC)
-    mission = _spec.make(BODY, int(p[-1]), p[0])
+    _sname = _spec.load(SPEC)["name"]  # BODY may be a lineage of this spec (e.g. go2-plant-inspection-r3)
+    mission = _spec.make(_sname, int(p[-1]), p[0])
 else:
     seed_i = next(i for i, x in enumerate(p) if x.isdigit())
     mission = make_mission(BODY, int(p[seed_i]), p[0], difficulty=p[seed_i + 1] if len(p) > seed_i + 2 else "medium",
                            mtype=p[seed_i + 2] if len(p) > seed_i + 2 else "single")
+from sim.mission import build_sim as _bs
+AIR_MAP = _bs({**mission, "physics": "grid"}).world.dims == 3
 first = db().llm_cache.find_one({"tier": "claude"}, sort=[("ts", 1)])
 cut = (first["ts"] - 60) if first else 0
 latest = {}
 for t in db().trials.find({"body": BODY, "mission_id": MID, "ts": {"$gte": cut}}).sort("ts", 1):
     latest[t["harness_version"]] = t
+# edits the gate stopped before they ran (illegal) have no trial: show them as "not run" attempts
+for h_ in db().harnesses.find({"body_type": BODY, "verdict": "rejected"}, {"version": 1}):
+    if h_["version"] not in latest:
+        ev_ = db().evaluations.find_one({"body": BODY, "version": h_["version"]}) or {}
+        latest[h_["version"]] = {"program": [], "score": {"success": False}, "not_run": True,
+                                 "diagnosis": "not run — " + str(ev_.get("reason", "rejected before evaluation"))}
 versions = sorted(latest)
 
 
@@ -96,8 +105,9 @@ def altitude(trace, k, w=800, h=300):
     x0, y0, x1, y1 = 60, 20, w - 20, h - 40
     zmax, tmax = 10, max(trace[-1]["t"], 1)
     zy = lambda z: y1 - (y1 - y0) * min(z, zmax) / zmax  # noqa: E731
-    d.rectangle([x0, zy(NOFLY_CEIL), x1, zy(1)], fill=(229, 115, 115, 50))
-    d.text((x0 + 8, zy(NOFLY_CEIL) + 4), f"no-fly band z<{NOFLY_CEIL} (where zone active)", font=F_S, fill=BAD)
+    if AIR_MAP:  # the no-fly band only exists on 3D maps
+        d.rectangle([x0, zy(NOFLY_CEIL), x1, zy(1)], fill=(229, 115, 115, 50))
+        d.text((x0 + 8, zy(NOFLY_CEIL) + 4), f"no-fly band z<{NOFLY_CEIL} (where zone active)", font=F_S, fill=BAD)
     d.rectangle([x0, y0, x1, y1], outline=MUTED)
     for z in range(0, zmax + 1, 2):
         d.text((x0 - 30, zy(z) - 8), str(z), font=F_S, fill=MUTED)
@@ -122,7 +132,7 @@ def right_panel(n, v, h, prev, t, score, final):
     st = mission["robots"][0]["structure"]
     line("INPUTS", MUTED, F_H, gap=32)
     line(f"robot    {BODY} · {', '.join(f'{k} {v}' for k, v in st['locomotion'].items())} · {st['mass_kg']} kg · "
-         f"{st['battery_wh']} Wh · payload {st['payload_bay_kg']} kg" + (f" · {st['model']}" if st.get("model") else ""))
+         f"{st['battery_wh']} Wh · payload {st['payload_bay_kg']} kg" + (f" · {os.path.basename(os.path.dirname(st['model'])) if '/' in st['model'] else st['model']}" if st.get("model") else ""))
     tr = mission["terrain"]
     if "map" in tr or "map_file" in tr:
         line(f"terrain  custom map ({tr.get('map_file', 'inline')}) · chargers")
@@ -147,8 +157,11 @@ def right_panel(n, v, h, prev, t, score, final):
         gate = {1: "bootstrap (no gate)"}.get(v, "gate ACCEPTED" if h.get("verdict") == "accepted"
                                               else "gate REJECTED → harness discarded")
         line(gate, OK if h.get("verdict") == "accepted" else (MUTED if v == 1 else BAD), F_H, wrap=40, gap=32)
-        line(f"{PHYS}: {score['energy_wh']} Wh · {score['time']} steps · violations {score['violations_total']}"
-             f"   (recorded grid run: {'success' if t['score']['success'] else 'fail'})", MUTED, F_S, wrap=70)
+        if t.get("not_run"):
+            line("the locked gate rejected this edit before any mission ran", MUTED, F_S, wrap=70)
+        else:
+          line(f"{PHYS}: {score['energy_wh']} Wh · {score['time']} steps · violations {score['violations_total']}"
+               f"   (recorded grid run: {'success' if t['score']['success'] else 'fail'})", MUTED, F_S, wrap=70)
     else:
         line(f"running in {PHYS} ...", MUTED, F_H)
     return im
