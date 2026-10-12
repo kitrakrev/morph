@@ -1,0 +1,1 @@
+{"primary": ["fly_to(pos=[31, 36, 0], alt=4, avoid_nofly=True)", "pick()", "fly_to(pos=[39, 21, 0], alt=4, avoid_nofly=True)", "drop()"]}

@@ -71,7 +71,9 @@ def lineage(body: str) -> list[dict]:
         out.append({"version": h["version"], "parent": h.get("parent"), "verdict": h.get("verdict"),
                     "diff": h.get("diff"), "rationale": h.get("rationale"), "prediction": h.get("prediction"),
                     "reason": e.get("reason"), "checks": e.get("checks"), "metrics": e.get("metrics"),
-                    "model": e.get("model"), "retrieved": e.get("retrieved_failures", [])[:5],
+                    "model": e.get("model"), "retrieved": e.get("retrieved_failures", []),
+                    "raindrop": e.get("raindrop"), "operator_hint": e.get("operator_hint"),
+                    "measured": e.get("measured"), "ts": e.get("ts"),
                     "workflow": h.get("workflow"), "rules": h.get("rules"), "budgets": h.get("budgets"),
                     "transferred_from": h.get("transferred_from")})
     return out

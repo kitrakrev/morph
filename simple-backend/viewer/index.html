@@ -241,7 +241,7 @@ const pages = {
     ${h.rationale ? `<p>${esc(h.rationale)}</p>` : ""}
     ${(Array.isArray(h.diff) ? h.diff : h.diff ? [h.diff] : []).map(d => `<pre><b>${esc(d.field)}</b>\n- ${esc(JSON.stringify(d.old))}\n+ ${esc(JSON.stringify(d.new))}</pre>`).join("")}
     ${h.reason ? `<div>Gate: <span class="${h.verdict==="accepted"?"ok":"bad"}">${esc(h.reason)}</span> ${h.checks ? "· " + Object.entries(h.checks).map(([k,v]) => `${v?"✓":"✗"} ${k}`).join(" · ") : ""}</div>` : ""}
-    ${h.retrieved?.length ? `<details><summary class="muted">retrieved similar failures (${h.retrieved.length})</summary><pre>${h.retrieved.map(esc).join("\n")}</pre></details>` : ""}</div>`).join("");
+    ${h.version === 1 ? "" : evidence(h)}</div>`).join("");
  },
  async workflow() {
   const L = await api(`/api/lineage?body=${BODY}`);
@@ -317,6 +317,26 @@ const pages = {
    <p>The harness can expand <i>what it does</i>, never <i>how it is judged</i>.</p></div>`;
  },
 };
+
+function evidence(h) {
+  const rd = h.raindrop;
+  let rdHtml;
+  if (!rd) rdHtml = `<span class="muted">not used — this decision was made before Raindrop was wired into the evolution agent</span>`;
+  else if (rd.source !== "raindrop-mcp" || rd.error) rdHtml = `<span class="bad">unavailable for this decision</span> <span class="muted">${esc(rd.error || rd.source || "")}</span>`;
+  else {
+    const sig = Object.entries(rd.signals || {}).map(([k, v]) => `<span class="pill">${esc(k)}: <b>${v}</b></span>`).join(" ");
+    const fails = (rd.failures || []).map(f => `<li><code>${esc(f)}</code></li>`).join("");
+    rdHtml = `${sig || '<span class="muted">no signals matched</span>'} <span class="muted">· events seen: ${rd.events_seen ?? "?"}</span>${fails ? `<ul style="margin:6px 0 0 18px">${fails}</ul>` : ""}`;
+  }
+  const pm = h.prediction ? `predicted Δtrain <b>${h.prediction.train_success_delta}</b> · measured <b>${h.measured?.train_success_delta ?? "?"}</b>` : "";
+  return `<div class="card" style="margin:10px 0 0;padding:12px 14px;background:var(--bg)">
+    <div style="font-weight:600;margin-bottom:6px">Evidence the evolution agent used</div>
+    <div style="margin:4px 0"><b style="color:#4b57c8">Raindrop signals</b> (queried via Raindrop MCP for this harness version, held-out excluded): ${rdHtml}</div>
+    <div style="margin:8px 0 4px"><b style="color:#00684a">Atlas $rankFusion — similar past failures</b> (${(h.retrieved || []).length}):</div>
+    ${(h.retrieved || []).length ? `<ul style="margin:0 0 0 18px">${h.retrieved.map(f => `<li><code>${esc(f)}</code></li>`).join("")}</ul>` : '<span class="muted">none retrieved</span>'}
+    ${h.operator_hint ? `<div style="margin-top:8px"><b style="color:#b5561c">Operator hint (human, logged):</b> ${esc(h.operator_hint)}</div>` : ""}
+    ${pm ? `<div style="margin-top:8px">${pm}</div>` : ""}</div>`;
+}
 
 function graph(h, base) {
   const nodes = h?.workflow?.nodes || [], baseN = new Set(base?.workflow?.nodes || []);
