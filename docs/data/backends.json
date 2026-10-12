@@ -1,1 +1,1 @@
-{"simple": ["drone", "fixed_wing_vtol", "hybrid", "medic-drone", "quadruped"], "mujoco": ["go2-plant-inspection", "x2-city-survey", "g1-warehouse-delivery", "drone", "fixed_wing_vtol"]}
+{"simple": ["drone", "fixed_wing_vtol", "hybrid", "medic-drone", "medic-drone-r2", "quadruped"], "mujoco": ["go2-plant-inspection", "x2-city-survey", "g1-warehouse-delivery", "drone", "fixed_wing_vtol"]}

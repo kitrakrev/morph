@@ -108,49 +108,55 @@ for n, v in enumerate(versions, 1):
     files.append(out)
     prev = h
     print(out, v)
-WHY = {
-    "drone": ("Why harness v17 won", [
-        ("v1, v8", "plans start with move_to — a ground move a drone can't make → never reaches the item", BAD),
-        ("v15, v16", "fly every leg, but cruise at altitude 3: wind drain grows with altitude → battery dies before the charger (gate REJECTED)", BAD),
-        ("v17", "edit: rules — \"body is a drone, never emit move_to; use fly_to for every movement, including to the charger\"", NEW),
-        ("result", "under that rule the planner flies the same fly → pick → charge → deliver sequence at altitude 1: lower drain, reaches the charger, lands to recharge, delivers with 44% battery", OK),
-        ("note", "altitude 1 was the planner's choice under v17's rules — no edit set altitude directly", MUTED),
-        ("gate", "train 0/6 → 5/6, no new violations, no regression → ACCEPTED; held-out 0/12 → 12/12", OK)]),
-    "fixed_wing_vtol": ("Why harness v2 won", [
-        ("v1", "fly_to with no-fly avoidance OFF (bootstrap default) → crosses 16 no-fly cells → violations", BAD),
-        ("evidence", "Raindrop signals for v1 showed no-fly violations; the evolution agent read them before proposing", INK),
-        ("v2", "edits: tool_specs fly_to.avoid_nofly → true, and a rule: never route through a no-fly zone", NEW),
-        ("result", "same plan shape, routed around the zone → 0 violations, delivered", OK),
-        ("gate", "train 4/6 → 6/6, violations 16 → 0, no regression → ACCEPTED; held-out 6/12 → 12/12", OK)]),
-}
-WHY.update({
-    "hybrid": ("No evolution needed", [
-        ("v1", "bootstrap drives to the item, flies the loaded leg — the expensive choice; 2 of 12 held-out missions end below the reserve", BAD),
-        ("why no edit", "train was already 6/6, so the gate had nothing to improve on — evolution only runs on train failures", MUTED),
-        ("held-out", "10/12 (n=12) from bootstrap alone", OK)]),
-    "quadruped": ("No evolution needed", [
-        ("v1", "on this hard-terrain deadline mission the legged body is too slow over rubble → misses the deadline", BAD),
-        ("context", "this mission comes from a hard-terrain probe (n=6, 3/6); on medium terrain v1 scores 12/12 held-out", MUTED),
-        ("why no edit", "the probe was a scoring run, not an evolution run", MUTED)]),
-    "medic-drone": ("No harness won — every edit rejected", [
-        ("input", "robot onboarded from a spec file with declared capabilities (fly_to alt 2–7, pick, drop, charge)", INK),
-        ("v1", "finishes below the battery reserve on this mission; 6/12 held-out", BAD),
-        ("v2–v4", "beliefs + feasibility-check + replan edits — train stayed 3/6, so the gate rejected each", BAD),
-        ("takeaway", "the input pipeline works for a new spec; adaptation for this body did not happen in the runs we had time for", MUTED)]),
-})
-if BODY not in WHY:
-    raise SystemExit("no closing card text for " + BODY)
-title, rows = WHY[BODY]
+# ---- closing card, built from Atlas: winner, what changed, evolver's reasoning, gate evidence, how others lost
+def reason(t):
+    sc = t["score"]
+    if sc["success"]:
+        return "delivered"
+    if sc.get("delivered") and not sc.get("deadline_met", True):
+        return f"missed deadline ({sc['time']} steps)"
+    return t["diagnosis"].split(", energy")[0].replace("not delivered: ", "").split(";")[0]
+
+accepted = [v for v in versions if db().harnesses.find_one({"body_type": BODY, "version": v}).get("verdict") == "accepted"
+            and latest[v]["score"]["success"]]
+win = accepted[-1] if accepted else None
+wh = db().harnesses.find_one({"body_type": BODY, "version": win or 1})
+ev = db().evaluations.find_one({"body": BODY, "version": win}) if win else None
+rows = []
+if win:
+    title = f"Why harness v{win} won"
+    for d in (wh.get("diff") if isinstance(wh.get("diff"), list) else []):
+        rows.append(("what changed", f"{d['field']}: {fmt(d['field'], d['old'])}  →  {fmt(d['field'], d['new'])}", NEW))
+    if wh.get("rationale"):
+        rows.append(("evolver's reasoning", wh["rationale"], INK))
+    m = (ev or {}).get("metrics", {})
+    p_, c_ = m.get("parent", {}), m.get("candidate", {})
+    checks = " · ".join(f"{'✓' if ok_ else '✗'} {k}" for k, ok_ in (ev or {}).get("checks", {}).items())
+    rows.append(("gate evidence", f"train {p_.get('train')} → {c_.get('train')}, regression {p_.get('reg')} → {c_.get('reg')}, "
+                                  f"violations {p_.get('viol')} → {c_.get('viol')}  ·  {checks}  →  ACCEPTED", OK))
+else:
+    title = "Why harness v1 stands — no edit was accepted"
+    rej = [v for v in versions if v != 1]
+    rows.append(("what changed", "nothing kept: " + (f"{len(rej)} candidate edit(s) all failed the gate" if rej else
+                                                     "no evolution ran (train was already saturated or this was a scoring run)"), MUTED))
+for v in versions:
+    if v == win:
+        continue
+    h = db().harnesses.find_one({"body_type": BODY, "version": v})
+    e = db().evaluations.find_one({"body": BODY, "version": v}) or {}
+    gate = "bootstrap" if v == 1 else ("gate " + ("ACCEPTED earlier" if h.get("verdict") == "accepted" else "REJECTED: " + str(e.get("reason", "")).replace("failed: ", "")))
+    rows.append((f"v{v} lost" if win else f"v{v}", f"{reason(latest[v])}  ·  {gate}", BAD if not latest[v]["score"]["success"] else MUTED))
+ho = scores_ho = None
 fig = plt.figure(figsize=(16, 9), facecolor="#FBFBF8")
-fig.text(0.05, 0.88, title, fontsize=34, fontweight="bold", color=INK)
-fig.text(0.05, 0.82, f"{BODY} · {MID} · same mission, same planner model", fontsize=15, color=MUTED)
-y = 0.72
+fig.text(0.05, 0.9, title, fontsize=32, fontweight="bold", color=INK)
+fig.text(0.05, 0.845, f"{BODY} · {MID} · same mission, same planner model", fontsize=15, color=MUTED)
+y = 0.76
 for label, text, color in rows:
-    fig.text(0.05, y, label, fontsize=15, fontweight="bold", color=MUTED)
-    for part in textwrap.wrap(text, 92):
-        fig.text(0.17, y, part.replace("$", r"\$"), fontsize=15, color=color)
-        y -= 0.05
-    y -= 0.025
+    fig.text(0.05, y, label, fontsize=14, fontweight="bold", color=MUTED)
+    for part in textwrap.wrap(text, 96)[:4]:
+        fig.text(0.21, y, part.replace("$", r"\$"), fontsize=14, color=color)
+        y -= 0.045
+    y -= 0.02
 card = f"out/attempts/why{TAG}.png"
 fig.savefig(card, facecolor="#FBFBF8", dpi=110)
 plt.close(fig)
